@@ -107,12 +107,22 @@ class SeckillService:
                 self._mem_users = getattr(self, "_mem_users", {})
                 self._mem_users.setdefault(activity_id, set()).add(user_id)
 
+    def _has_order_in_db(self, activity_id: int, user_id: int) -> bool:
+        """数据库兜底：该用户是否已有此活动的秒杀订单（防止进程重启后内存限购失效）。"""
+        from app.models import SeckillActivity, Order
+        activity = SeckillActivity.query.get(activity_id)
+        if not activity:
+            return False
+        return Order.query.filter_by(
+            user_id=user_id, fruit_id=activity.fruit_id, is_seckill=True
+        ).first() is not None
+
     # ---------------- 对外主流程 ----------------
 
     def seckill(self, activity_id: int, user_id: int) -> str:
         """执行一次抢购。返回结果状态码。"""
-        # 1. 限购校验：一个用户只能抢一次
-        if self.has_bought(activity_id, user_id):
+        # 1. 限购校验：先查内存标记，再查数据库兜底（进程重启后内存清空也能拦住）
+        if self.has_bought(activity_id, user_id) or self._has_order_in_db(activity_id, user_id):
             return "REPEAT_BUY"
 
         # 2. 原子扣库存

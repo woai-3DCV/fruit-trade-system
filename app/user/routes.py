@@ -121,6 +121,7 @@ def seckill_buy(activity_id):
     elif result == "REPEAT_BUY":
         flash("你已抢过该商品（限购）", "error")
     else:
+        # 售罄时，若库存扣减因数据库一致性问题失败，回滚内存标记
         flash("手慢了，已售罄", "error")
 
     return redirect(url_for("user.seckill"))
@@ -133,8 +134,14 @@ def fruit_detail(fruit_id):
     """商品详情 + 记录浏览历史（给推荐用）。"""
     fruit = Fruit.query.get_or_404(fruit_id)
     if current_user_id():
-        history = BrowseHistory(user_id=current_user_id(), fruit_id=fruit_id)
-        db.session.add(history)
+        # 浏览历史：同一商品只保留最近一次浏览（更新时间），避免无限膨胀
+        existing = BrowseHistory.query.filter_by(
+            user_id=current_user_id(), fruit_id=fruit_id
+        ).first()
+        if existing:
+            existing.viewed_at = datetime.now()
+        else:
+            db.session.add(BrowseHistory(user_id=current_user_id(), fruit_id=fruit_id))
         db.session.commit()
     # 商品评价列表 + 平均分
     reviews = Review.query.filter_by(fruit_id=fruit_id).order_by(Review.created_at.desc()).all()
@@ -181,8 +188,10 @@ def fruit_review(fruit_id):
 def cart():
     """购物车列表。"""
     items = Cart.query.filter_by(user_id=current_user_id()).all() if current_user_id() else []
-    total = sum(item.fruit.price * item.quantity for item in items)
-    return render_template("user/cart.html", items=items, total=total)
+    # 过滤掉商品已下架/删除的条目，只统计有效商品
+    valid_items = [i for i in items if i.fruit and i.fruit.is_on_sale]
+    total = sum(i.fruit.price * i.quantity for i in valid_items)
+    return render_template("user/cart.html", items=valid_items, total=total)
 
 
 @user_bp.route("/cart/add/<int:fruit_id>", methods=["POST"])
@@ -248,6 +257,8 @@ def checkout():
 
     if request.method == "GET":
         items = Cart.query.filter_by(user_id=current_user_id()).all()
+        # 只结算在售商品
+        items = [i for i in items if i.fruit and i.fruit.is_on_sale]
         if not items:
             flash("购物车是空的", "error")
             return redirect(url_for("user.cart"))
@@ -257,6 +268,8 @@ def checkout():
 
     # POST：下单
     items = Cart.query.filter_by(user_id=current_user_id()).all()
+    # 只结算在售商品
+    items = [i for i in items if i.fruit and i.fruit.is_on_sale]
     if not items:
         flash("购物车是空的", "error")
         return redirect(url_for("user.cart"))

@@ -59,7 +59,7 @@
         <div style="color:#ff4d4f;font-size:16px;font-weight:bold;">¥{{ '%.2f'|format(item.fruit.price * item.quantity) }}</div>
       </div>
       <!-- 删除 -->
-      <form method="post" action="/user/cart/remove/{{ item.id }}" style="margin:0;flex-shrink:0;">
+      <form method="post" action="/user/cart/remove/{{ item.id }}" style="margin:0;flex-shrink:0;" onsubmit="return confirm('确定移除「{{ item.fruit.name }}」吗？');">
         <button type="submit" style="background:none;border:none;color:#ccc;font-size:18px;cursor:pointer;padding:4px;" title="删除">🗑️</button>
       </form>
     </div>

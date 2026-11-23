@@ -8,6 +8,11 @@ from datetime import datetime
 
 db = SQLAlchemy()
 
+# 统一用本地时间（中文环境，前端直接 strftime 展示即北京时间），
+# 避免 created_at(UTC) 与 pay_deadline/paid_at(本地) 时区不一致导致的显示错乱
+def _now():
+    return datetime.now()
+
 
 # ============================================================
 # 共享表（订单/用户跨端使用，组长统一定义）
@@ -26,7 +31,7 @@ class User(db.Model):
     avatar = db.Column(db.String(8), default="😊")   # 头像 emoji（默认，未上传图片时用）
     avatar_url = db.Column(db.Text)                  # 头像图片（base64 data URL，拍照/相册上传）
     gender = db.Column(db.String(8))                 # 男/女/保密
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_now)
 
 
 class Order(db.Model):
@@ -40,7 +45,7 @@ class Order(db.Model):
     total_price = db.Column(db.Float)
     status = db.Column(db.String(20), default="待支付")  # 待支付/待发货/运输中/已完成/已取消
     is_seckill = db.Column(db.Boolean, default=False)   # 是否秒杀订单
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_now)
     pay_deadline = db.Column(db.DateTime)               # 支付截止时间（超时自动取消）
     address = db.Column(db.String(255))                 # 收货地址（下单时快照）
     payment_method = db.Column(db.String(20))           # 支付方式：微信/支付宝/余额
@@ -101,7 +106,7 @@ class BrowseHistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     fruit_id = db.Column(db.Integer, db.ForeignKey("fruits.id"), nullable=False)
-    viewed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    viewed_at = db.Column(db.DateTime, default=_now)
 
 
 class Message(db.Model):
@@ -114,7 +119,7 @@ class Message(db.Model):
     fruit_id = db.Column(db.Integer, db.ForeignKey("fruits.id"))                 # 关联商品（可为空）
     sender_role = db.Column(db.String(20), nullable=False)  # user / merchant（谁发的）
     content = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_now)
 
 
 class Review(db.Model):
@@ -127,7 +132,7 @@ class Review(db.Model):
     order_id = db.Column(db.Integer, db.ForeignKey("orders.id"))    # 关联订单
     rating = db.Column(db.Integer, default=5)                       # 1~5 星
     content = db.Column(db.String(255))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_now)
 
     user = db.relationship("User", backref="reviews")
     fruit = db.relationship("Fruit", backref="reviews")
@@ -176,7 +181,7 @@ class AfterSale(db.Model):
     type = db.Column(db.String(20))          # 退款/退货
     reason = db.Column(db.String(255))
     status = db.Column(db.String(20), default="待处理")   # 待处理/已同意/已拒绝/已完成
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_now)
 
     order = db.relationship("Order", backref="after_sales")
 
@@ -227,4 +232,4 @@ class TemperatureLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     logistics_id = db.Column(db.Integer, db.ForeignKey("logistics.id"), nullable=False)
     temperature = db.Column(db.Float)                     # 温度
-    record_time = db.Column(db.DateTime, default=datetime.utcnow)
+    record_time = db.Column(db.DateTime, default=_now)

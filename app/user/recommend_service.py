@@ -23,41 +23,58 @@ class RecommendService:
         """
         from app.models import Fruit, BrowseHistory
 
-        # 1. 用户浏览过的细分类
+        # 1. 用户浏览过的细分类（按浏览次数加权排序，最近浏览的权重更高）
         browsed_subcats = []
         if user_id:
             rows = (
                 BrowseHistory.query
                 .filter_by(user_id=user_id)
+                .order_by(BrowseHistory.viewed_at.desc())
+                .limit(50)  # 只看最近 50 条，避免历史过多拖慢查询
                 .all()
             )
-            fruit_ids = [h.fruit_id for h in rows]
-            if fruit_ids:
-                browsed_subcats = [
-                    row[0] for row in
-                    Fruit.query.filter(Fruit.id.in_(fruit_ids))
-                    .with_entities(Fruit.sub_category).distinct().all()
-                ]
+            # 保持浏览先后顺序去重（最近浏览的细分类排前面）
+            seen = set()
+            ordered_ids = []
+            for h in rows:
+                if h.fruit_id not in seen:
+                    seen.add(h.fruit_id)
+                    ordered_ids.append(h.fruit_id)
+            if ordered_ids:
+                rows_fruit = (
+                    Fruit.query.filter(Fruit.id.in_(ordered_ids))
+                    .with_entities(Fruit.id, Fruit.sub_category).all()
+                )
+                sub_of = {fid: sub for fid, sub in rows_fruit}
+                for fid in ordered_ids:
+                    sub = sub_of.get(fid)
+                    if sub and sub not in browsed_subcats:
+                        browsed_subcats.append(sub)
 
         # 2. 推荐：优先同细分类，再按销量补足
         result = []
+        seen_ids = set()
         if browsed_subcats:
             for sub in browsed_subcats:
                 items = (
                     Fruit.query
                     .filter_by(sub_category=sub, is_on_sale=True)
                     .order_by(Fruit.sales.desc())
+                    .limit(limit)
                     .all()
                 )
                 for f in items:
-                    if f.id not in [x.id for x in result]:
+                    if f.id not in seen_ids:
+                        seen_ids.add(f.id)
                         result.append(f)
+                    if len(result) >= limit:
+                        return result
 
         # 3. 用热销商品补足到 limit 个
         if len(result) < limit:
             hot = Fruit.query.filter_by(is_on_sale=True).order_by(Fruit.sales.desc()).all()
             for f in hot:
-                if f.id not in [x.id for x in result]:
+                if f.id not in seen_ids:
                     result.append(f)
                 if len(result) >= limit:
                     break

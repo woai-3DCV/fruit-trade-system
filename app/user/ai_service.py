@@ -87,8 +87,9 @@ def chat(question, history=None):
             answer = data["choices"][0]["message"]["content"].strip()
             if answer:
                 return answer, True
-        except Exception:
-            pass  # 降级
+        except Exception as e:
+            # 降级到关键词匹配（网络失败/超时/key 无效等都走这里）
+            pass
 
     # 2. 降级：关键词匹配
     fallback = _fallback_keywords(question)
