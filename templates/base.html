@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>{% block title %}水果交易智能管理系统{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+  <!-- ===== 顶部导航栏（全组统一，不要改） ===== -->
+  <nav class="navbar">
+    <div class="logo"><span class="emoji">🍉</span>水果交易智能管理系统</div>
+    <div class="spacer"></div>
+    <div class="nav-links">
+      {% block nav %}{% endblock %}
+    </div>
+    <div class="user-info">
+      {% block userinfo %}{% endblock %}
+    </div>
+  </nav>
+
+  <!-- ===== 页面主体内容（每个端自己填这一块） ===== -->
+  <div class="container">
+    {% block content %}{% endblock %}
+  </div>
+
+</body>
+</html>

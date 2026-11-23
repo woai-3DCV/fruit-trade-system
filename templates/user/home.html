@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}用户端首页 - 水果交易智能管理系统{% endblock %}
+
+{% block nav %}
+  <a href="/user/" class="active">首页</a>
+  <a href="/user/seckill">限时秒杀</a>
+  <a href="/user/cart">购物车</a>
+  <a href="/user/orders">我的订单</a>
+{% endblock %}
+
+{% block userinfo %}你好，普通用户{% endblock %}
+
+{% block content %}
+
+  <!-- 秒杀专区横幅 -->
+  <div class="card">
+    <div class="card-title">⚡ 限时秒杀</div>
+    <p style="color:var(--text-light);margin-bottom:12px;">临期好果，低价清仓，手慢无！</p>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;">
+      <div style="border:1px solid var(--border);border-radius:6px;padding:12px;width:200px;">
+        <div style="font-weight:bold;">丹东草莓 500g</div>
+        <div class="seckill-price">¥9.9 <span style="font-size:13px;color:var(--text-light);text-decoration:line-through;">¥29.9</span></div>
+        <div class="seckill-countdown">距结束 02:35:18</div>
+        <button class="btn btn-danger" style="margin-top:10px;width:100%;">立即抢购</button>
+      </div>
+      <div style="border:1px solid var(--border);border-radius:6px;padding:12px;width:200px;">
+        <div style="font-weight:bold;">海南香蕉 1kg</div>
+        <div class="seckill-price">¥5.9 <span style="font-size:13px;color:var(--text-light);text-decoration:line-through;">¥12.9</span></div>
+        <div class="seckill-countdown">即将开始 18:00</div>
+        <button class="btn btn-outline" style="margin-top:10px;width:100%;">提醒我</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 商品分类浏览 -->
+  <div class="card">
+    <div class="card-title">🍎 水果分类</div>
+    <table class="table">
+      <thead>
+        <tr><th>商品</th><th>分类</th><th>产地</th><th>价格</th><th>操作</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>红富士苹果</td><td>苹果</td><td>山东烟台</td><td>¥8.8/斤</td>
+          <td><a href="#" class="btn btn-outline" style="padding:4px 12px;">详情</a></td>
+        </tr>
+        <tr>
+          <td>赣南脐橙</td><td>柑橘</td><td>江西赣州</td><td>¥6.5/斤</td>
+          <td><a href="#" class="btn btn-outline" style="padding:4px 12px;">详情</a></td>
+        </tr>
+        <tr>
+          <td>麒麟西瓜</td><td>瓜类</td><td>海南</td><td>¥3.9/斤</td>
+          <td><a href="#" class="btn btn-outline" style="padding:4px 12px;">详情</a></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 个性化推荐 -->
+  <div class="card">
+    <div class="card-title">💡 猜你喜欢（个性化推荐）</div>
+    <p style="color:var(--text-light);margin-bottom:12px;">根据你的浏览和购买记录推荐</p>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;">
+      <div style="border:1px solid var(--border);border-radius:6px;padding:12px;width:180px;">
+        <div style="font-weight:bold;">库尔勒香梨</div>
+        <div style="color:var(--primary);font-weight:bold;">¥7.9/斤</div>
+        <span class="badge badge-green">买了苹果的人还买了</span>
+      </div>
+      <div style="border:1px solid var(--border);border-radius:6px;padding:12px;width:180px;">
+        <div style="font-weight:bold;">阳光玫瑰葡萄</div>
+        <div style="color:var(--primary);font-weight:bold;">¥19.9/斤</div>
+        <span class="badge badge-green">当季热销</span>
+      </div>
+      <div style="border:1px solid var(--border);border-radius:6px;padding:12px;width:180px;">
+        <div style="font-weight:bold;">云南蓝莓</div>
+        <div style="color:var(--primary);font-weight:bold;">¥25.0/盒</div>
+        <span class="badge badge-green">浏览过</span>
+      </div>
+    </div>
+  </div>
+
+{% endblock %}

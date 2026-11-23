@@ -2,11 +2,11 @@
 
 模块：上架/下架、库存管理、发货、售后、报表，以及创新点：库存损耗预警、批次管理。
 """
-from flask import Blueprint
+from flask import Blueprint, render_template
 
 merchant_bp = Blueprint("merchant", __name__, url_prefix="/merchant")
 
 
 @merchant_bp.route("/")
 def home():
-    return "商家端首页"
+    return render_template("merchant/home.html")

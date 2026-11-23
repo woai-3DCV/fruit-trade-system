@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>登录 - 水果交易智能管理系统</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    .login-wrap {
+      max-width: 380px;
+      margin: 80px auto;
+    }
+    .login-title {
+      text-align: center;
+      font-size: 22px;
+      font-weight: bold;
+      margin-bottom: 24px;
+    }
+    .role-btns {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .role-btns label {
+      flex: 1;
+      min-width: 70px;
+      text-align: center;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .role-btns input:checked + span {
+      color: var(--primary);
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="card">
+      <div class="login-title">🍉 水果交易智能管理系统</div>
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div style="background:#fff1f0;color:#ff4d4f;padding:8px 12px;border-radius:4px;margin-bottom:12px;">{{ message }}</div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      <form method="post" action="/login">
+        <div class="form-group">
+          <label>用户名</label>
+          <input type="text" name="username" placeholder="请输入用户名" required>
+        </div>
+        <div class="form-group">
+          <label>密码</label>
+          <input type="password" name="password" placeholder="请输入密码" required>
+        </div>
+        <div class="form-group">
+          <label>选择身份</label>
+          <div class="role-btns">
+            <label><input type="radio" name="role" value="user" checked><span>普通用户</span></label>
+            <label><input type="radio" name="role" value="merchant"><span>商家</span></label>
+            <label><input type="radio" name="role" value="admin"><span>平台管理员</span></label>
+            <label><input type="radio" name="role" value="logistics"><span>物流配送</span></label>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">登 录</button>
+      </form>
+      <div style="margin-top:16px;font-size:12px;color:var(--text-light);text-align:center;">
+        测试账号：admin / admin123（管理员）<br>
+        其他身份：user、merchant、logistics / 123456
+      </div>
+    </div>
+  </div>
+</body>
+</html>
