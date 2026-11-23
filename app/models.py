@@ -23,7 +23,8 @@ class User(db.Model):
     role = db.Column(db.String(20), nullable=False)  # user / merchant / admin / logistics
     phone = db.Column(db.String(20))
     nickname = db.Column(db.String(64))              # 昵称
-    avatar = db.Column(db.String(8), default="😊")   # 头像 emoji
+    avatar = db.Column(db.String(8), default="😊")   # 头像 emoji（默认，未上传图片时用）
+    avatar_url = db.Column(db.Text)                  # 头像图片（base64 data URL，拍照/相册上传）
     gender = db.Column(db.String(8))                 # 男/女/保密
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 

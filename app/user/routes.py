@@ -412,9 +412,28 @@ def profile_update():
     user.nickname = request.form.get("nickname", "").strip() or user.username
     user.phone = request.form.get("phone", "").strip()
     user.gender = request.form.get("gender", "保密")
-    user.avatar = request.form.get("avatar", "😊")
     db.session.commit()
     flash("资料已更新", "success")
+    return redirect(url_for("user.profile"))
+
+
+@user_bp.route("/profile/avatar", methods=["POST"])
+def profile_avatar():
+    """上传头像（拍照/相册，前端转 base64 后提交）。"""
+    user = _require_login()
+    if user is None:
+        return redirect(url_for("auth.login"))
+    avatar_data = request.form.get("avatar_data", "").strip()
+    if avatar_data and avatar_data.startswith("data:image"):
+        # 简单校验 + 限制大小（约 2MB）
+        if len(avatar_data) > 2 * 1024 * 1024:
+            flash("图片过大，请选择 2MB 以内的图片", "error")
+        else:
+            user.avatar_url = avatar_data
+            db.session.commit()
+            flash("头像已更新", "success")
+    else:
+        flash("未选择图片", "error")
     return redirect(url_for("user.profile"))
 
 
