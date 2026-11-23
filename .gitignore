@@ -17,6 +17,7 @@ ENV/
 .env
 config_local.py
 instance/
+app/user/ai_config.py
 
 # 编辑器
 .idea/

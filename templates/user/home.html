@@ -16,6 +16,21 @@
 
 {% block content %}
 
+  <!-- 搜索框 -->
+  <div style="margin-bottom:16px;">
+    <form method="get" action="/user/" style="display:flex;gap:10px;">
+      <input type="text" name="q" value="{{ keyword or '' }}" placeholder="搜索水果名称 / 产地 / 分类，如：苹果、山东、草莓..."
+             style="flex:1;padding:11px 16px;border:1px solid #e0e0e0;border-radius:22px;font-size:14px;">
+      <button type="submit" class="btn btn-primary" style="padding:11px 24px;border-radius:22px;">🔍 搜索</button>
+    </form>
+    {% if keyword %}
+    <div style="font-size:13px;color:#999;margin-top:8px;">
+      搜索「<span style="color:var(--primary);font-weight:bold;">{{ keyword }}</span>」共 {{ fruits|length }} 个结果
+      <a href="/user/" style="color:var(--primary);margin-left:8px;text-decoration:none;">清除搜索</a>
+    </div>
+    {% endif %}
+  </div>
+
   <!-- 秒杀横幅 -->
   <div style="background:linear-gradient(90deg,#ff4d4f,#ff7875);border-radius:10px;padding:14px 18px;margin-bottom:18px;color:#fff;display:flex;align-items:center;gap:12px;">
     <span style="font-size:22px;">⚡</span>

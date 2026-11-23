@@ -117,6 +117,22 @@ class Message(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class Review(db.Model):
+    """商品评价（用户对已完成订单打分评论）。"""
+    __tablename__ = "reviews"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    fruit_id = db.Column(db.Integer, db.ForeignKey("fruits.id"), nullable=False)
+    order_id = db.Column(db.Integer, db.ForeignKey("orders.id"))    # 关联订单
+    rating = db.Column(db.Integer, default=5)                       # 1~5 星
+    content = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship("User", backref="reviews")
+    fruit = db.relationship("Fruit", backref="reviews")
+
+
 # ============================================================
 # 商家端表（B 负责）
 # ============================================================
@@ -156,9 +172,13 @@ class AfterSale(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     order_id = db.Column(db.Integer, db.ForeignKey("orders.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"))      # 申请用户
     type = db.Column(db.String(20))          # 退款/退货
     reason = db.Column(db.String(255))
-    status = db.Column(db.String(20), default="待处理")
+    status = db.Column(db.String(20), default="待处理")   # 待处理/已同意/已拒绝/已完成
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    order = db.relationship("Order", backref="after_sales")
 
 
 # ============================================================

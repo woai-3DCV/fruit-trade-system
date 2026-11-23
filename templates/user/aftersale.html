@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}售后申请 - 水果交易智能管理系统{% endblock %}
+
+{% block nav %}
+  <a href="/user/">首页</a>
+  <a href="/user/seckill">限时秒杀</a>
+  <a href="/user/cart">购物车</a>
+  <a href="/user/orders">我的订单</a>
+  <a href="/user/profile">个人中心</a>
+{% endblock %}
+
+{% block userinfo %}
+  {% if session.get('username') %}你好，{{ session['username'] }}{% else %}你好，游客{% endif %}
+{% endblock %}
+
+{% block content %}
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div style="display:flex;align-items:center;gap:8px;background:{{ '#fff1f0' if category=='error' else '#f0f9eb' }};border:1px solid {{ '#ffccc7' if category=='error' else '#b7eb8f' }};color:{{ '#cf1322' if category=='error' else '#389e0d' }};padding:10px 14px;border-radius:6px;margin-bottom:14px;font-size:14px;">
+          <span>{{ '⚠️' if category=='error' else '✅' }}</span><span>{{ message }}</span>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+    <span style="font-size:20px;font-weight:bold;">🛠️ 售后申请</span>
+    <a href="/user/orders" style="font-size:13px;color:var(--primary);text-decoration:none;">返回订单 ›</a>
+  </div>
+
+  {% if records %}
+    {% for r in records %}
+    <div class="card" style="margin-bottom:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="font-weight:bold;font-size:15px;">
+          {{ r.order.fruit.emoji if r.order and r.order.fruit else '🍓' }} {{ r.order.fruit.name if r.order and r.order.fruit else '订单#' ~ r.order_id }}
+        </div>
+        {% set st = {'待处理':'#faad14','已同意':'#1890ff','已拒绝':'#ff4d4f','已完成':'#52c41a'} %}
+        <span style="font-size:13px;font-weight:bold;color:{{ st.get(r.status,'#999') }};">{{ r.status }}</span>
+      </div>
+      <div style="font-size:13px;color:#666;margin-bottom:6px;">
+        类型：<span style="color:#333;font-weight:bold;">{{ r.type }}</span>
+        <span style="margin-left:12px;color:#999;">{{ r.created_at.strftime('%Y-%m-%d %H:%M') if r.created_at else '' }}</span>
+      </div>
+      <div style="font-size:13px;color:#666;background:#f9f9f9;padding:10px 12px;border-radius:6px;">申请原因：{{ r.reason }}</div>
+    </div>
+    {% endfor %}
+  {% else %}
+  <div style="text-align:center;padding:60px 20px;color:#999;">
+    <div style="font-size:60px;margin-bottom:16px;">🛠️</div>
+    <div style="font-size:16px;margin-bottom:20px;">还没有售后申请</div>
+    <div style="font-size:13px;margin-bottom:16px;">在订单列表对已完成订单申请退款/退货</div>
+    <a href="/user/orders" class="btn btn-primary">查看订单</a>
+  </div>
+  {% endif %}
+
+{% endblock %}

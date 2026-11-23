@@ -40,28 +40,7 @@
       <div class="profile-name">{{ user.nickname or user.username }}</div>
       <div class="profile-sub">@{{ user.username }} · {{ user.gender or '保密' }}</div>
     </div>
-  </div>
-
-  <!-- ===== 快捷入口 ===== -->
-  <div style="display:flex;gap:12px;margin-bottom:16px;">
-    <a href="/user/chat" style="flex:1;text-decoration:none;color:inherit;">
-      <div class="card" style="display:flex;align-items:center;gap:10px;margin-bottom:0;cursor:pointer;">
-        <div style="width:40px;height:40px;border-radius:10px;background:var(--primary-light);display:flex;align-items:center;justify-content:center;font-size:20px;">💬</div>
-        <div>
-          <div style="font-weight:bold;font-size:14px;">我的咨询</div>
-          <div style="font-size:12px;color:#999;">私信商家</div>
-        </div>
-      </div>
-    </a>
-    <a href="/user/ai" style="flex:1;text-decoration:none;color:inherit;">
-      <div class="card" style="display:flex;align-items:center;gap:10px;margin-bottom:0;cursor:pointer;">
-        <div style="width:40px;height:40px;border-radius:10px;background:#e8f5e9;display:flex;align-items:center;justify-content:center;font-size:20px;">🤖</div>
-        <div>
-          <div style="font-weight:bold;font-size:14px;">AI 助手</div>
-          <div style="font-size:12px;color:#999;">智能客服</div>
-        </div>
-      </div>
-    </a>
+    <a href="/user/chat" class="btn btn-outline" style="padding:6px 14px;font-size:13px;text-decoration:none;flex-shrink:0;">💬 我的咨询</a>
   </div>
 
   <!-- ===== 标签页切换 ===== -->

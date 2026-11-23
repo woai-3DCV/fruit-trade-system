@@ -7,9 +7,10 @@ from flask import Blueprint, render_template, request, redirect, url_for, sessio
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from app.models import db, User, Fruit, Cart, Order, SeckillActivity, BrowseHistory, Address, Message
+from app.models import db, User, Fruit, Cart, Order, SeckillActivity, BrowseHistory, Address, Message, AfterSale, Review
 from app.user.seckill_service import seckill_service
 from app.user.recommend_service import recommend_service
+from app.user import ai_service
 
 # 待支付订单的支付超时时间（分钟），超时自动取消
 PAY_TIMEOUT_MINUTES = 15
@@ -27,10 +28,20 @@ def home():
     category = request.args.get("category", "水果")
     # 细分类筛选（可选）
     sub = request.args.get("sub", "")
+    # 搜索关键词（可选）
+    keyword = (request.args.get("q") or "").strip()
 
-    query = Fruit.query.filter_by(is_on_sale=True, category=category)
+    query = Fruit.query.filter_by(is_on_sale=True)
+    if category and category != "全部":
+        query = query.filter_by(category=category)
     if sub:
         query = query.filter_by(sub_category=sub)
+    if keyword:
+        # 按名称/产地/细分分类模糊搜索
+        like = f"%{keyword}%"
+        query = query.filter(
+            db.or_(Fruit.name.like(like), Fruit.origin.like(like), Fruit.sub_category.like(like))
+        )
     fruits = query.all()
 
     # 该大分类下的所有细分类（用于左侧二级导航）
@@ -61,6 +72,7 @@ def home():
         all_sub_cats=all_sub_cats,
         current_category=category,
         current_sub=sub,
+        keyword=keyword,
     )
 
 
@@ -124,7 +136,40 @@ def fruit_detail(fruit_id):
         history = BrowseHistory(user_id=current_user_id(), fruit_id=fruit_id)
         db.session.add(history)
         db.session.commit()
-    return render_template("user/fruit_detail.html", fruit=fruit)
+    # 商品评价列表 + 平均分
+    reviews = Review.query.filter_by(fruit_id=fruit_id).order_by(Review.created_at.desc()).all()
+    avg_rating = round(sum(r.rating for r in reviews) / len(reviews), 1) if reviews else 0
+    return render_template(
+        "user/fruit_detail.html", fruit=fruit, reviews=reviews, avg_rating=avg_rating
+    )
+
+
+@user_bp.route("/fruit/<int:fruit_id>/review", methods=["POST"])
+def fruit_review(fruit_id):
+    """提交商品评价（对已完成订单）。"""
+    user = _require_login()
+    if user is None:
+        return redirect(url_for("auth.login"))
+    try:
+        rating = int(request.form.get("rating", 5))
+    except (TypeError, ValueError):
+        rating = 5
+    rating = max(1, min(5, rating))
+    content = (request.form.get("content") or "").strip()
+
+    # 校验：该用户有已完成订单才允许评价（简化：登录即可评，但记录 order_id 可选）
+    order_id = request.form.get("order_id")
+    review = Review(
+        user_id=user.id,
+        fruit_id=fruit_id,
+        order_id=int(order_id) if order_id else None,
+        rating=rating,
+        content=content,
+    )
+    db.session.add(review)
+    db.session.commit()
+    flash("评价已发布，感谢你的反馈！", "success")
+    return redirect(url_for("user.fruit_detail", fruit_id=fruit_id))
 
 
 # ---------------- 购物车 ----------------
@@ -588,54 +633,131 @@ def chat_send(merchant_id, fruit_id=None):
                     else url_for("user.chat_detail", merchant_id=merchant_id))
 
 
-# ---------------- AI 智能助手 ----------------
+# ---------------- 订单详情 ----------------
 
-AI_KEYWORDS = {
-    "秒杀": "限时秒杀在「限时秒杀」专区，价格超低，先到先得！每次限购 1 件，手慢无哦～",
-    "优惠": "可以关注「限时秒杀」专区，热门水果有折扣价，比如丹东草莓秒杀价 ¥9.9！",
-    "推荐": "可以看首页底部的「猜你喜欢」，根据你的浏览记录智能推荐水果～",
-    "退款": "在「我的订单」找到对应订单，超时可申请售后。需要帮助可以私信商家或联系平台。",
-    "退货": "售后问题可以在「我的订单」发起售后申请，商家会尽快处理。",
-    "配送": "订单发货后可在「我的订单」查看物流状态，全程冷链配送。",
-    "物流": "订单运输中会实时更新位置，冷链温控全程监控，保证水果新鲜。",
-    "地址": "在「个人中心 → 收货地址」可以添加和管理收货地址。",
-    "密码": "在「个人中心 → 安全设置」可以修改登录密码。",
-    "支付": "支持微信支付、支付宝、银行卡支付三种方式。",
-    "客服": "可以在商品详情页点击「咨询商家」私信商家，或在这里问我～",
-    "新鲜": "我们所有水果都是产地直采、冷链配送，保证新鲜。",
-    "售后": "在「我的订单」可以对已完成订单发起售后申请（退款/退货）。",
-}
+@user_bp.route("/order/<int:order_id>/detail")
+def order_detail(order_id):
+    """订单详情（JSON，供前端弹窗/展开）。"""
+    user = _require_login()
+    if user is None:
+        return {"error": "请先登录"}, 401
+    order = Order.query.filter_by(id=order_id, user_id=user.id).first()
+    if not order:
+        return {"error": "订单不存在"}, 404
+
+    fruit = order.fruit
+    # 尝试读取物流信息（若物流端已录入）
+    logistics = None
+    from app.models import Logistics
+    logi = Logistics.query.filter_by(order_id=order.id).first()
+    if logi:
+        logistics = {
+            "status": logi.status,
+            "courier": logi.courier,
+            "current_location": logi.current_location,
+        }
+
+    return {
+        "id": order.id,
+        "status": order.status,
+        "is_seckill": order.is_seckill,
+        "created_at": order.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+        "paid_at": order.paid_at.strftime("%Y-%m-%d %H:%M:%S") if order.paid_at else None,
+        "pay_deadline": order.pay_deadline.strftime("%Y-%m-%d %H:%M:%S") if order.pay_deadline else None,
+        "address": order.address,
+        "payment_method": order.payment_method,
+        "total_price": order.total_price,
+        "quantity": order.quantity,
+        "fruit_name": fruit.name if fruit else "",
+        "fruit_emoji": fruit.emoji if fruit else "🍓",
+        "fruit_origin": fruit.origin if fruit else "",
+        "logistics": logistics,
+    }
+
+
+# ---------------- 售后 ----------------
+
+@user_bp.route("/aftersale")
+def aftersale_list():
+    """我的售后申请列表。"""
+    user = _require_login()
+    if user is None:
+        return redirect(url_for("auth.login"))
+    records = AfterSale.query.filter_by(user_id=user.id).order_by(AfterSale.created_at.desc()).all()
+    return render_template("user/aftersale.html", records=records)
+
+
+@user_bp.route("/order/<int:order_id>/aftersale/apply", methods=["POST"])
+def aftersale_apply(order_id):
+    """对某订单发起售后申请（退款/退货）。"""
+    user = _require_login()
+    if user is None:
+        return redirect(url_for("auth.login"))
+    order = Order.query.filter_by(id=order_id, user_id=user.id).first()
+    if not order:
+        flash("订单不存在", "error")
+        return redirect(url_for("user.orders"))
+
+    # 只允许对已支付/已完成/待发货等非取消订单申请售后
+    if order.status in ("已取消", "待支付"):
+        flash("该订单状态无法申请售后", "error")
+        return redirect(url_for("user.orders"))
+
+    # 已申请过则拒绝重复
+    existing = AfterSale.query.filter_by(order_id=order.id).first()
+    if existing:
+        flash("该订单已申请过售后", "error")
+        return redirect(url_for("user.aftersale_list"))
+
+    atype = request.form.get("type", "退款")
+    reason = (request.form.get("reason") or "").strip()
+    if not reason:
+        flash("请填写申请原因", "error")
+        return redirect(url_for("user.orders"))
+
+    record = AfterSale(order_id=order.id, user_id=user.id, type=atype, reason=reason)
+    db.session.add(record)
+    db.session.commit()
+    flash("售后申请已提交，商家会尽快处理", "success")
+    return redirect(url_for("user.aftersale_list"))
+
 
 AI_QUICK_QUESTIONS = ["怎么参加秒杀？", "有什么优惠吗？", "怎么退款？", "怎么改收货地址？", "支持哪些支付方式？", "帮我推荐水果"]
 
 
 @user_bp.route("/ai")
 def ai_assistant():
-    """AI 智能助手页面。"""
-    return render_template("user/ai.html", quick_questions=AI_QUICK_QUESTIONS)
+    """AI 智能助手页面（悬浮球点开后的独立窗口，也支持独立访问）。"""
+    return render_template("user/ai.html", quick_questions=AI_QUICK_QUESTIONS, ai_configured=ai_service.is_configured())
 
 
 @user_bp.route("/ai/ask", methods=["POST"])
 def ai_ask():
-    """AI 助手问答（关键词匹配 + 推荐兜底）。"""
-    user = _require_login()
+    """AI 助手问答（优先 DeepSeek 大模型，失败降级关键词匹配）。
+
+    请求体：question（必填），history（可选 JSON 数组 [{role, content}]）
+    """
     question = (request.form.get("question") or "").strip()
     if not question:
         return {"answer": "请先输入问题哦～"}, 400
 
-    answer = None
-    for kw, resp in AI_KEYWORDS.items():
-        if kw in question:
-            answer = resp
-            break
+    # 解析多轮历史
+    history = None
+    raw_history = request.form.get("history")
+    if raw_history:
+        import json as _json
+        try:
+            history = _json.loads(raw_history)
+        except Exception:
+            history = None
 
-    # 兜底：推荐热门水果
-    if answer is None:
+    answer, used_ai = ai_service.chat(question, history=history)
+
+    # 大模型答不上时，兜底推荐热门水果
+    if not used_ai and answer.startswith("这个问题我还没学会"):
         hot = Fruit.query.filter_by(is_on_sale=True).order_by(Fruit.sales.desc()).limit(3).all()
         if hot:
             names = "、".join(f"{f.emoji}{f.name}(¥{f.price})" for f in hot)
-            answer = f"这个问题我还不太会，不过可以看看这些热销水果：{names}。也可以私信商家咨询哦～"
-        else:
-            answer = "这个问题我还不太会，建议私信商家或联系平台客服哦～"
+            answer = f"可以看看这些热销水果：{names}。也可以私信商家咨询哦～"
 
-    return {"answer": answer}
+    return {"answer": answer, "used_ai": used_ai}

@@ -63,6 +63,10 @@
       </div>
       {% set status_style = {'待支付':'#faad14','待发货':'#1890ff','运输中':'#722ed1','已完成':'#52c41a','已取消':'#999'} %}
       <span style="font-size:14px;font-weight:bold;color:{{ status_style.get(o.status,'#999') }};">{{ o.status }}</span>
+      <button type="button" class="btn btn-outline order-detail-btn" data-id="{{ o.id }}" style="padding:4px 10px;font-size:12px;">查看详情</button>
+      {% if o.status in ('已完成','待发货','运输中') %}
+      <button type="button" class="btn btn-outline aftersale-btn" data-id="{{ o.id }}" data-name="{{ o.fruit.name }}" style="padding:4px 10px;font-size:12px;">申请售后</button>
+      {% endif %}
     </div>
     <!-- 商品行 -->
     <div style="display:flex;align-items:center;gap:14px;padding:16px 18px;">
@@ -112,6 +116,42 @@
   </div>
   {% endif %}
 
+  <!-- 订单详情弹窗 -->
+  <div class="modal-mask" id="order-detail-modal" style="display:none;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <span>📋 订单详情</span>
+        <span class="modal-close" id="order-detail-close">✕</span>
+      </div>
+      <div id="order-detail-body" style="font-size:14px;color:#333;"></div>
+    </div>
+  </div>
+
+  <!-- 售后申请弹窗 -->
+  <div class="modal-mask" id="aftersale-modal" style="display:none;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <span>🛠️ 申请售后</span>
+        <span class="modal-close" id="aftersale-close">✕</span>
+      </div>
+      <form method="post" id="aftersale-form" action="">
+        <div style="font-size:13px;color:#666;margin-bottom:12px;">商品：<span id="aftersale-fruit" style="color:#333;font-weight:bold;"></span></div>
+        <div class="form-row">
+          <label class="form-label">售后类型</label>
+          <select name="type">
+            <option value="退款">退款</option>
+            <option value="退货">退货</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label class="form-label">申请原因</label>
+          <textarea name="reason" rows="3" placeholder="请描述遇到的问题..." required style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:14px;resize:vertical;"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;margin-top:8px;">提交申请</button>
+      </form>
+    </div>
+  </div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -149,5 +189,63 @@
     bar.style.display = count > 0 ? 'flex' : 'none';
   }
   checks.forEach(function(c){ c.addEventListener('change', updateBar); });
+
+  // 订单详情弹窗
+  var detailModal = document.getElementById('order-detail-modal');
+  var detailBody = document.getElementById('order-detail-body');
+  var detailClose = document.getElementById('order-detail-close');
+  if (detailModal) {
+    document.querySelectorAll('.order-detail-btn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        fetch('/user/order/' + btn.dataset.id + '/detail')
+          .then(function(r){ return r.json(); })
+          .then(function(d){
+            var rows = [
+              ['订单号', '#' + d.id],
+              ['商品', (d.fruit_emoji || '🍓') + ' ' + d.fruit_name + ' ×' + d.quantity],
+              ['下单时间', d.created_at],
+              ['订单状态', d.status],
+            ];
+            if (d.payment_method) rows.push(['支付方式', d.payment_method]);
+            if (d.paid_at) rows.push(['支付时间', d.paid_at]);
+            if (d.address) rows.push(['收货地址', d.address]);
+            if (d.is_seckill) rows.push(['订单类型', '⚡ 秒杀单']);
+            if (d.logistics) {
+              rows.push(['物流状态', d.logistics.status]);
+              if (d.logistics.courier) rows.push(['配送员', d.logistics.courier]);
+              if (d.logistics.current_location) rows.push(['当前位置', d.logistics.current_location]);
+            }
+            rows.push(['实付金额', '¥' + parseFloat(d.total_price).toFixed(2)]);
+            var html = '<table class="table"><tbody>';
+            rows.forEach(function(row){
+              html += '<tr><th style="width:100px;">' + row[0] + '</th><td>' + row[1] + '</td></tr>';
+            });
+            html += '</tbody></table>';
+            detailBody.innerHTML = html;
+            detailModal.style.display = 'flex';
+          })
+          .catch(function(){ alert('加载失败'); });
+      });
+    });
+    detailClose.addEventListener('click', function(){ detailModal.style.display = 'none'; });
+    detailModal.addEventListener('click', function(e){ if (e.target === detailModal) detailModal.style.display = 'none'; });
+  }
+
+  // 售后申请弹窗
+  var aftersaleModal = document.getElementById('aftersale-modal');
+  var aftersaleForm = document.getElementById('aftersale-form');
+  var aftersaleFruit = document.getElementById('aftersale-fruit');
+  var aftersaleClose = document.getElementById('aftersale-close');
+  if (aftersaleModal) {
+    document.querySelectorAll('.aftersale-btn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        aftersaleFruit.textContent = btn.dataset.name;
+        aftersaleForm.action = '/user/order/' + btn.dataset.id + '/aftersale/apply';
+        aftersaleModal.style.display = 'flex';
+      });
+    });
+    aftersaleClose.addEventListener('click', function(){ aftersaleModal.style.display = 'none'; });
+    aftersaleModal.addEventListener('click', function(e){ if (e.target === aftersaleModal) aftersaleModal.style.display = 'none'; });
+  }
 </script>
 {% endblock %}
