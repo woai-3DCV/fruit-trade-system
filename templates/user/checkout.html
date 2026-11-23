@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}确认订单 - 水果交易智能管理系统{% endblock %}
+
+{% block nav %}
+  <a href="/user/">首页</a>
+  <a href="/user/seckill">限时秒杀</a>
+  <a href="/user/cart" class="active">购物车</a>
+  <a href="/user/orders">我的订单</a>
+  <a href="/user/profile">个人中心</a>
+{% endblock %}
+
+{% block userinfo %}
+  {% if session.get('username') %}你好，{{ session['username'] }}{% else %}你好，游客{% endif %}
+{% endblock %}
+
+{% block content %}
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div style="display:flex;align-items:center;gap:8px;background:{{ '#fff1f0' if category=='error' else '#f0f9eb' }};border:1px solid {{ '#ffccc7' if category=='error' else '#b7eb8f' }};color:{{ '#cf1322' if category=='error' else '#389e0d' }};padding:10px 14px;border-radius:6px;margin-bottom:14px;font-size:14px;">
+          <span>{{ '⚠️' if category=='error' else '✅' }}</span><span>{{ message }}</span>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <div style="font-size:20px;font-weight:bold;margin-bottom:16px;">📝 确认订单</div>
+
+  <!-- 收货地址选择 -->
+  <div class="card">
+    <div class="card-title">📍 收货地址</div>
+    {% if addresses %}
+      {% for addr in addresses %}
+      <label class="addr-option {{ 'active' if addr.is_default }}">
+        <input type="radio" name="address_id" value="{{ addr.id }}" {{ 'checked' if addr.is_default }} style="display:none;">
+        <div>
+          <div style="font-weight:bold;font-size:15px;">
+            {{ addr.receiver }} <span style="font-size:13px;color:#666;font-weight:normal;">{{ addr.phone }}</span>
+            {% if addr.is_default %}<span style="font-size:11px;color:#ff8c00;background:#fff1e0;padding:1px 6px;border-radius:3px;margin-left:6px;">默认</span>{% endif %}
+          </div>
+          <div style="font-size:13px;color:#666;margin-top:4px;">{{ addr.detail }}</div>
+        </div>
+      </label>
+      {% endfor %}
+      <a href="/user/profile" style="font-size:13px;color:var(--primary);">＋ 管理收货地址</a>
+    {% else %}
+      <div style="color:#999;padding:10px 0;">还没有收货地址，<a href="/user/profile" style="color:var(--primary);">去添加</a></div>
+    {% endif %}
+  </div>
+
+  <!-- 商品清单 -->
+  <div class="card">
+    <div class="card-title">🛒 商品清单</div>
+    {% for item in items %}
+    <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid #f0f0f0;">
+      <div style="width:48px;height:48px;background:#f8f8f8;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">{{ item.fruit.emoji or '🍓' }}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:bold;font-size:14px;">{{ item.fruit.name }}</div>
+        <div style="font-size:12px;color:#999;">¥{{ item.fruit.price }} × {{ item.quantity }}</div>
+      </div>
+      <div style="color:#ff4d4f;font-weight:bold;">¥{{ '%.2f'|format(item.fruit.price * item.quantity) }}</div>
+    </div>
+    {% endfor %}
+    <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px;padding-top:14px;">
+      <span style="font-size:13px;color:#666;">合计：</span>
+      <span style="color:#ff4d4f;font-size:24px;font-weight:bold;">¥{{ '%.2f'|format(total) }}</span>
+    </div>
+  </div>
+
+  <!-- 提交 -->
+  <form method="post" action="/user/checkout">
+    <input type="hidden" name="address_id" id="selected-address" value="{{ (addresses|first).id if addresses else '' }}">
+    <button type="submit" class="btn btn-danger" style="width:100%;padding:14px;font-size:16px;border-radius:10px;margin-top:16px;">提交订单 · 去支付</button>
+  </form>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // 地址选择联动
+  document.querySelectorAll('.addr-option').forEach(function(el){
+    el.addEventListener('click', function(){
+      document.querySelectorAll('.addr-option').forEach(function(x){ x.classList.remove('active'); });
+      el.classList.add('active');
+      var radio = el.querySelector('input[name="address_id"]');
+      if (radio) {
+        radio.checked = true;
+        document.getElementById('selected-address').value = radio.value;
+      }
+    });
+  });
+</script>
+{% endblock %}

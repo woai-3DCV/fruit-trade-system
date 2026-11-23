@@ -22,6 +22,9 @@ class User(db.Model):
     password_hash = db.Column(db.String(128), nullable=False)
     role = db.Column(db.String(20), nullable=False)  # user / merchant / admin / logistics
     phone = db.Column(db.String(20))
+    nickname = db.Column(db.String(64))              # 昵称
+    avatar = db.Column(db.String(8), default="😊")   # 头像 emoji
+    gender = db.Column(db.String(8))                 # 男/女/保密
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
@@ -38,6 +41,9 @@ class Order(db.Model):
     is_seckill = db.Column(db.Boolean, default=False)   # 是否秒杀订单
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     pay_deadline = db.Column(db.DateTime)               # 支付截止时间（超时自动取消）
+    address = db.Column(db.String(255))                 # 收货地址（下单时快照）
+    payment_method = db.Column(db.String(20))           # 支付方式：微信/支付宝/余额
+    paid_at = db.Column(db.DateTime)                    # 支付时间
 
     fruit = db.relationship("Fruit", backref="orders")
 
@@ -56,6 +62,18 @@ class Cart(db.Model):
     quantity = db.Column(db.Integer, default=1)
 
     fruit = db.relationship("Fruit", backref="cart_items")
+
+
+class Address(db.Model):
+    """收货地址（用户端，组长负责）。"""
+    __tablename__ = "addresses"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    receiver = db.Column(db.String(64), nullable=False)   # 收货人
+    phone = db.Column(db.String(20), nullable=False)      # 联系电话
+    detail = db.Column(db.String(255), nullable=False)    # 详细地址
+    is_default = db.Column(db.Boolean, default=False)     # 是否默认地址
 
 
 class SeckillActivity(db.Model):

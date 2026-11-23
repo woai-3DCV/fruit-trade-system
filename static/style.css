@@ -365,3 +365,66 @@ body {
   outline: none;
   border-color: var(--primary);
 }
+
+/* ---------- 个人中心表单（横向行） ---------- */
+.form-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.form-label {
+  width: 70px;
+  flex-shrink: 0;
+  font-size: 14px;
+  color: var(--text-light);
+  text-align: right;
+}
+.form-row input,
+.form-row select {
+  flex: 1;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+  color: var(--text);
+}
+.form-row input:focus,
+.form-row select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+/* ---------- 支付方式选择 ---------- */
+.pay-method {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.pay-method:hover { border-color: var(--primary); }
+.pay-method.active {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+/* ---------- 收货地址选择 ---------- */
+.addr-option {
+  display: block;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.addr-option:hover { border-color: var(--primary); }
+.addr-option.active {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}

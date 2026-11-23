@@ -5,8 +5,9 @@
 """
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from datetime import datetime, timedelta
+from werkzeug.security import generate_password_hash, check_password_hash
 
-from app.models import db, User, Fruit, Cart, Order, SeckillActivity, BrowseHistory
+from app.models import db, User, Fruit, Cart, Order, SeckillActivity, BrowseHistory, Address
 from app.user.seckill_service import seckill_service
 from app.user.recommend_service import recommend_service
 
@@ -87,9 +88,11 @@ def seckill_buy(activity_id):
     result = seckill_service.seckill(activity_id, current_user_id())
 
     if result == "SUCCESS":
-        # 生成秒杀订单
+        # 生成秒杀订单（收货地址取默认地址，没有则留空）
         activity = SeckillActivity.query.get(activity_id)
         fruit = Fruit.query.get(activity.fruit_id)
+        addr = Address.query.filter_by(user_id=current_user_id(), is_default=True).first()
+        addr_snapshot = f"{addr.receiver} {addr.phone} {addr.detail}" if addr else ""
         order = Order(
             user_id=current_user_id(),
             fruit_id=activity.fruit_id,
@@ -98,6 +101,7 @@ def seckill_buy(activity_id):
             status="待支付",
             is_seckill=True,
             pay_deadline=datetime.now() + timedelta(minutes=PAY_TIMEOUT_MINUTES),
+            address=addr_snapshot,
         )
         db.session.add(order)
         db.session.commit()
@@ -188,12 +192,39 @@ def cart_remove(item_id):
 
 # ---------------- 下单 ----------------
 
-@user_bp.route("/checkout", methods=["POST"])
+@user_bp.route("/checkout", methods=["GET", "POST"])
 def checkout():
-    """从购物车下单。"""
+    """确认订单：GET 选收货地址，POST 真正下单。"""
     if current_user_id() is None:
         return redirect(url_for("auth.login"))
+
+    if request.method == "GET":
+        items = Cart.query.filter_by(user_id=current_user_id()).all()
+        if not items:
+            flash("购物车是空的", "error")
+            return redirect(url_for("user.cart"))
+        total = sum(item.fruit.price * item.quantity for item in items)
+        addresses = Address.query.filter_by(user_id=current_user_id()).order_by(Address.is_default.desc(), Address.id.desc()).all()
+        return render_template("user/checkout.html", items=items, total=total, addresses=addresses)
+
+    # POST：下单
     items = Cart.query.filter_by(user_id=current_user_id()).all()
+    if not items:
+        flash("购物车是空的", "error")
+        return redirect(url_for("user.cart"))
+
+    # 收货地址：优先用户选的地址，否则默认地址，否则提示
+    addr_id = request.form.get("address_id")
+    address = None
+    if addr_id:
+        address = Address.query.filter_by(id=int(addr_id), user_id=current_user_id()).first()
+    if address is None:
+        address = Address.query.filter_by(user_id=current_user_id(), is_default=True).first()
+    if address is None:
+        flash("请先添加收货地址", "error")
+        return redirect(url_for("user.profile"))
+    address_snapshot = f"{address.receiver} {address.phone} {address.detail}"
+
     for item in items:
         fruit = Fruit.query.get(item.fruit_id)
         order = Order(
@@ -203,6 +234,7 @@ def checkout():
             total_price=fruit.price * item.quantity,
             status="待支付",
             pay_deadline=datetime.now() + timedelta(minutes=PAY_TIMEOUT_MINUTES),
+            address=address_snapshot,
         )
         db.session.add(order)
         db.session.delete(item)
@@ -247,23 +279,47 @@ def order_cancel(order_id):
     return redirect(url_for("user.orders"))
 
 
-@user_bp.route("/order/<int:order_id>/pay", methods=["POST"])
+@user_bp.route("/order/<int:order_id>/pay", methods=["POST", "GET"])
 def order_pay(order_id):
-    """支付单个订单（模拟支付，待支付 → 待发货）。"""
+    """进入支付方式选择页（待支付订单）。"""
     if current_user_id() is None:
         return redirect(url_for("auth.login"))
     order = Order.query.filter_by(id=order_id, user_id=current_user_id()).first()
-    if order and order.status == "待支付":
-        if order.pay_deadline and datetime.now() > order.pay_deadline:
-            order.status = "已取消"
-            db.session.commit()
-            flash("订单已超时，请重新下单", "error")
-        else:
-            order.status = "待发货"
-            db.session.commit()
-            flash("支付成功！等待商家发货", "success")
-    else:
+    if not order:
+        flash("订单不存在", "error")
+        return redirect(url_for("user.orders"))
+    if order.status != "待支付":
+        flash("该订单当前状态不可支付", "error")
+        return redirect(url_for("user.orders"))
+    if order.pay_deadline and datetime.now() > order.pay_deadline:
+        order.status = "已取消"
+        db.session.commit()
+        flash("订单已超时，请重新下单", "error")
+        return redirect(url_for("user.orders"))
+    return render_template("user/pay.html", order=order)
+
+
+@user_bp.route("/order/<int:order_id>/pay/confirm", methods=["POST"])
+def order_pay_confirm(order_id):
+    """确认支付（选择支付方式后跳转模拟支付，确认后完成支付）。"""
+    if current_user_id() is None:
+        return redirect(url_for("auth.login"))
+    order = Order.query.filter_by(id=order_id, user_id=current_user_id()).first()
+    if not order or order.status != "待支付":
         flash("该订单无法支付", "error")
+        return redirect(url_for("user.orders"))
+    if order.pay_deadline and datetime.now() > order.pay_deadline:
+        order.status = "已取消"
+        db.session.commit()
+        flash("订单已超时，请重新下单", "error")
+        return redirect(url_for("user.orders"))
+
+    method = request.form.get("payment_method", "余额")
+    order.payment_method = method
+    order.paid_at = datetime.now()
+    order.status = "待发货"
+    db.session.commit()
+    flash(f"支付成功！（{method}）等待商家发货", "success")
     return redirect(url_for("user.orders"))
 
 
@@ -301,3 +357,115 @@ def order_batch_pay():
     if not paid and not expired:
         flash("没有可支付的订单", "error")
     return redirect(url_for("user.orders"))
+
+
+# ---------------- 个人中心 ----------------
+
+def _require_login():
+    """未登录则返回 None，已登录返回 user 对象。"""
+    if current_user_id() is None:
+        return None
+    return User.query.get(current_user_id())
+
+
+@user_bp.route("/profile")
+def profile():
+    """个人中心：基础资料 + 收货地址。"""
+    user = _require_login()
+    if user is None:
+        flash("请先登录", "error")
+        return redirect(url_for("auth.login"))
+    addresses = Address.query.filter_by(user_id=user.id).order_by(Address.is_default.desc(), Address.id.desc()).all()
+    return render_template("user/profile.html", user=user, addresses=addresses)
+
+
+@user_bp.route("/profile/update", methods=["POST"])
+def profile_update():
+    """更新基础资料（昵称/手机/性别/头像）。"""
+    user = _require_login()
+    if user is None:
+        return redirect(url_for("auth.login"))
+    user.nickname = request.form.get("nickname", "").strip() or user.username
+    user.phone = request.form.get("phone", "").strip()
+    user.gender = request.form.get("gender", "保密")
+    user.avatar = request.form.get("avatar", "😊")
+    db.session.commit()
+    flash("资料已更新", "success")
+    return redirect(url_for("user.profile"))
+
+
+@user_bp.route("/profile/password", methods=["POST"])
+def profile_password():
+    """修改密码。"""
+    user = _require_login()
+    if user is None:
+        return redirect(url_for("auth.login"))
+    old_pwd = request.form.get("old_password", "")
+    new_pwd = request.form.get("new_password", "")
+    if not check_password_hash(user.password_hash, old_pwd):
+        flash("原密码错误", "error")
+    elif len(new_pwd) < 6:
+        flash("新密码至少 6 位", "error")
+    else:
+        user.password_hash = generate_password_hash(new_pwd)
+        db.session.commit()
+        flash("密码已修改，下次登录请用新密码", "success")
+    return redirect(url_for("user.profile"))
+
+
+# ---------------- 收货地址 ----------------
+
+@user_bp.route("/address/add", methods=["POST"])
+def address_add():
+    """新增收货地址。"""
+    user = _require_login()
+    if user is None:
+        return redirect(url_for("auth.login"))
+    receiver = request.form.get("receiver", "").strip()
+    phone = request.form.get("phone", "").strip()
+    detail = request.form.get("detail", "").strip()
+    if not (receiver and phone and detail):
+        flash("请填写完整的收货信息", "error")
+        return redirect(url_for("user.profile"))
+    addr = Address(user_id=user.id, receiver=receiver, phone=phone, detail=detail,
+                   is_default=(Address.query.filter_by(user_id=user.id).count() == 0))
+    db.session.add(addr)
+    db.session.commit()
+    flash("地址已添加", "success")
+    return redirect(url_for("user.profile"))
+
+
+@user_bp.route("/address/<int:addr_id>/delete", methods=["POST"])
+def address_delete(addr_id):
+    """删除收货地址。"""
+    user = _require_login()
+    if user is None:
+        return redirect(url_for("auth.login"))
+    addr = Address.query.filter_by(id=addr_id, user_id=user.id).first()
+    if addr:
+        was_default = addr.is_default
+        db.session.delete(addr)
+        db.session.commit()
+        # 若删的是默认地址，把最新一个设为默认
+        if was_default:
+            remain = Address.query.filter_by(user_id=user.id).order_by(Address.id.desc()).first()
+            if remain:
+                remain.is_default = True
+                db.session.commit()
+        flash("地址已删除", "success")
+    return redirect(url_for("user.profile"))
+
+
+@user_bp.route("/address/<int:addr_id>/default", methods=["POST"])
+def address_set_default(addr_id):
+    """设为默认地址。"""
+    user = _require_login()
+    if user is None:
+        return redirect(url_for("auth.login"))
+    Address.query.filter_by(user_id=user.id).update({"is_default": False})
+    addr = Address.query.filter_by(id=addr_id, user_id=user.id).first()
+    if addr:
+        addr.is_default = True
+    db.session.commit()
+    flash("已设为默认地址", "success")
+    return redirect(url_for("user.profile"))
