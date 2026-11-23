@@ -412,6 +412,24 @@ body {
   border-color: var(--primary);
   background: var(--primary-light);
 }
+.pay-logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.pay-logo-wechat { background: #07c160; }   /* 微信绿 */
+.pay-logo-alipay { background: #1677ff; }   /* 支付宝蓝 */
+.pay-logo-balance { background: #ff8c00; color: #fff; font-size: 18px; font-weight: bold; }
+.pay-check {
+  font-size: 18px;
+  font-weight: bold;
+  color: #ccc;
+}
+.pay-method.active .pay-check { color: var(--primary-dark); }
 
 /* ---------- 收货地址选择 ---------- */
 .addr-option {
@@ -427,4 +445,136 @@ body {
 .addr-option.active {
   border-color: var(--primary);
   background: var(--primary-light);
+}
+
+/* ---------- 个人中心头部 ---------- */
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 22px 24px;
+  background: linear-gradient(135deg, #3d9c12, #52c41a);
+  border-radius: 12px;
+  color: #fff;
+  margin-bottom: 16px;
+}
+.profile-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  flex-shrink: 0;
+  border: 2px solid rgba(255,255,255,0.4);
+}
+.profile-meta { flex: 1; min-width: 0; }
+.profile-name { font-size: 20px; font-weight: bold; }
+.profile-sub { font-size: 13px; opacity: 0.85; margin-top: 2px; }
+
+/* ---------- 标签页 ---------- */
+.tab-bar {
+  display: flex;
+  gap: 4px;
+  background: #fff;
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+.tab-item {
+  flex: 1;
+  padding: 10px 0;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  color: var(--text-light);
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+.tab-item:hover { color: var(--text); }
+.tab-item.active {
+  background: var(--primary);
+  color: #fff;
+  font-weight: bold;
+}
+.tab-badge {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 11px;
+  margin-left: 4px;
+}
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ---------- 地址卡片 ---------- */
+.addr-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 10px;
+  background: #fff;
+}
+.addr-card.default {
+  border-color: #ff8c00;
+  background: #fffbf0;
+}
+.addr-info { flex: 1; min-width: 0; }
+.addr-receiver { font-weight: bold; font-size: 15px; }
+.addr-phone { font-size: 13px; color: #666; font-weight: normal; margin-left: 6px; }
+.addr-detail { font-size: 13px; color: #666; margin-top: 4px; }
+.addr-tag {
+  font-size: 11px;
+  color: #ff8c00;
+  background: #fff1e0;
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-left: 6px;
+}
+.addr-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ---------- 订单状态分类标签 ---------- */
+.order-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.order-tab {
+  padding: 8px 16px;
+  border-radius: 18px;
+  font-size: 14px;
+  color: var(--text-light);
+  text-decoration: none;
+  background: #fff;
+  border: 1px solid var(--border);
+  transition: all 0.2s;
+}
+.order-tab:hover { color: var(--text); border-color: var(--primary); }
+.order-tab.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+  font-weight: bold;
+}
+.order-tab-count {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 12px;
+  opacity: 0.7;
 }

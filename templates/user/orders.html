@@ -26,9 +26,20 @@
     {% endif %}
   {% endwith %}
 
-  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
     <span style="font-size:20px;font-weight:bold;">📋 我的订单</span>
-    {% if orders %}<span style="font-size:13px;color:#999;">共 {{ orders|length }} 单</span>{% endif %}
+    <span style="font-size:13px;color:#999;">共 {{ status_counts.get(current_status, 0) }} 单</span>
+  </div>
+
+  <!-- 订单状态分类标签 -->
+  <div class="order-tabs">
+    {% set tabs = ['全部','待支付','待发货','待收货','已完成','已取消'] %}
+    {% for t in tabs %}
+    <a href="/user/orders?status={{ t }}" class="order-tab {{ 'active' if current_status==t }}">
+      {{ t }}
+      <span class="order-tab-count">{{ status_counts.get(t, 0) }}</span>
+    </a>
+    {% endfor %}
   </div>
 
   {% if orders %}
@@ -96,7 +107,7 @@
   {% else %}
   <div style="text-align:center;padding:60px 20px;color:#999;">
     <div style="font-size:60px;margin-bottom:16px;">📦</div>
-    <div style="font-size:16px;margin-bottom:20px;">还没有订单</div>
+    <div style="font-size:16px;margin-bottom:20px;">{{ '该分类下暂无订单' if current_status != '全部' else '还没有订单' }}</div>
     <a href="/user/" class="btn btn-primary">去逛逛</a>
   </div>
   {% endif %}

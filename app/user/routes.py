@@ -255,13 +255,37 @@ def _cancel_if_expired(order):
 
 @user_bp.route("/orders")
 def orders():
-    """我的订单（进入时自动取消超时未支付订单）。"""
+    """我的订单（进入时自动取消超时未支付订单），支持按状态筛选。"""
     if current_user_id() is None:
         return redirect(url_for("auth.login"))
-    my_orders = Order.query.filter_by(user_id=current_user_id()).order_by(Order.created_at.desc()).all()
-    for o in my_orders:
+
+    # 先取消超时订单
+    all_orders = Order.query.filter_by(user_id=current_user_id()).order_by(Order.created_at.desc()).all()
+    for o in all_orders:
         _cancel_if_expired(o)
-    return render_template("user/orders.html", orders=my_orders, timeout_minutes=PAY_TIMEOUT_MINUTES)
+
+    # 状态筛选
+    status = request.args.get("status", "全部")
+    if status != "全部":
+        my_orders = Order.query.filter_by(user_id=current_user_id(), status=status).order_by(Order.created_at.desc()).all()
+    else:
+        my_orders = all_orders
+
+    # 各状态数量（用于标签页显示）
+    status_counts = {}
+    for s in ["全部", "待支付", "待发货", "待收货", "已完成", "已取消"]:
+        if s == "全部":
+            status_counts[s] = Order.query.filter_by(user_id=current_user_id()).count()
+        else:
+            status_counts[s] = Order.query.filter_by(user_id=current_user_id(), status=s).count()
+
+    return render_template(
+        "user/orders.html",
+        orders=my_orders,
+        current_status=status,
+        status_counts=status_counts,
+        timeout_minutes=PAY_TIMEOUT_MINUTES,
+    )
 
 
 @user_bp.route("/order/<int:order_id>/cancel", methods=["POST"])
