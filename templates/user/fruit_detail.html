@@ -16,7 +16,7 @@
 {% block content %}
 
   <div class="card">
-    <div class="card-title">🍎 {{ fruit.name }}</div>
+    <div class="card-title">{{ fruit.emoji or '🍓' }} {{ fruit.name }}</div>
     <table class="table">
       <tbody>
         <tr><th style="width:120px;">分类</th><td>{{ fruit.category }} · {{ fruit.sub_category }}</td></tr>

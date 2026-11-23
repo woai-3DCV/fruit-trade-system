@@ -37,6 +37,7 @@ class Order(db.Model):
     status = db.Column(db.String(20), default="待支付")  # 待支付/待发货/运输中/已完成/已取消
     is_seckill = db.Column(db.Boolean, default=False)   # 是否秒杀订单
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    pay_deadline = db.Column(db.DateTime)               # 支付截止时间（超时自动取消）
 
     fruit = db.relationship("Fruit", backref="orders")
 
@@ -96,6 +97,7 @@ class Fruit(db.Model):
     name = db.Column(db.String(64), nullable=False)
     category = db.Column(db.String(64))          # 大分类（水果/蔬菜/肉禽等）
     sub_category = db.Column(db.String(64))      # 细分类（苹果/柑橘/莓果等）
+    emoji = db.Column(db.String(8), default="🍓")  # 商品展示图标
     price = db.Column(db.Float)
     origin = db.Column(db.String(128))           # 产地
     sales = db.Column(db.Integer, default=0)     # 销量（支撑热销/进度条）

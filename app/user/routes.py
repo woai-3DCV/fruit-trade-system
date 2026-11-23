@@ -4,11 +4,14 @@
 以及创新点：限时秒杀、智能推荐。
 """
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.models import db, User, Fruit, Cart, Order, SeckillActivity, BrowseHistory
 from app.user.seckill_service import seckill_service
 from app.user.recommend_service import recommend_service
+
+# 待支付订单的支付超时时间（分钟），超时自动取消
+PAY_TIMEOUT_MINUTES = 15
 
 user_bp = Blueprint("user", __name__, url_prefix="/user")
 
@@ -94,6 +97,7 @@ def seckill_buy(activity_id):
             total_price=activity.seckill_price,
             status="待支付",
             is_seckill=True,
+            pay_deadline=datetime.now() + timedelta(minutes=PAY_TIMEOUT_MINUTES),
         )
         db.session.add(order)
         db.session.commit()
@@ -198,18 +202,102 @@ def checkout():
             quantity=item.quantity,
             total_price=fruit.price * item.quantity,
             status="待支付",
+            pay_deadline=datetime.now() + timedelta(minutes=PAY_TIMEOUT_MINUTES),
         )
         db.session.add(order)
         db.session.delete(item)
     db.session.commit()
-    flash("下单成功！", "success")
+    flash("下单成功！请尽快支付", "success")
     return redirect(url_for("user.orders"))
 
 
 # ---------------- 订单 ----------------
 
+def _cancel_if_expired(order):
+    """待支付订单超时自动取消。返回订单当前状态。"""
+    if order.status == "待支付" and order.pay_deadline and datetime.now() > order.pay_deadline:
+        order.status = "已取消"
+        db.session.commit()
+    return order.status
+
+
 @user_bp.route("/orders")
 def orders():
-    """我的订单。"""
-    my_orders = Order.query.filter_by(user_id=current_user_id()).order_by(Order.created_at.desc()).all() if current_user_id() else []
-    return render_template("user/orders.html", orders=my_orders)
+    """我的订单（进入时自动取消超时未支付订单）。"""
+    if current_user_id() is None:
+        return redirect(url_for("auth.login"))
+    my_orders = Order.query.filter_by(user_id=current_user_id()).order_by(Order.created_at.desc()).all()
+    for o in my_orders:
+        _cancel_if_expired(o)
+    return render_template("user/orders.html", orders=my_orders, timeout_minutes=PAY_TIMEOUT_MINUTES)
+
+
+@user_bp.route("/order/<int:order_id>/cancel", methods=["POST"])
+def order_cancel(order_id):
+    """取消订单（仅待支付可取消）。"""
+    if current_user_id() is None:
+        return redirect(url_for("auth.login"))
+    order = Order.query.filter_by(id=order_id, user_id=current_user_id()).first()
+    if order and order.status == "待支付":
+        order.status = "已取消"
+        db.session.commit()
+        flash("订单已取消", "success")
+    else:
+        flash("该订单无法取消", "error")
+    return redirect(url_for("user.orders"))
+
+
+@user_bp.route("/order/<int:order_id>/pay", methods=["POST"])
+def order_pay(order_id):
+    """支付单个订单（模拟支付，待支付 → 待发货）。"""
+    if current_user_id() is None:
+        return redirect(url_for("auth.login"))
+    order = Order.query.filter_by(id=order_id, user_id=current_user_id()).first()
+    if order and order.status == "待支付":
+        if order.pay_deadline and datetime.now() > order.pay_deadline:
+            order.status = "已取消"
+            db.session.commit()
+            flash("订单已超时，请重新下单", "error")
+        else:
+            order.status = "待发货"
+            db.session.commit()
+            flash("支付成功！等待商家发货", "success")
+    else:
+        flash("该订单无法支付", "error")
+    return redirect(url_for("user.orders"))
+
+
+@user_bp.route("/order/batch-pay", methods=["POST"])
+def order_batch_pay():
+    """批量支付选中的待支付订单。"""
+    if current_user_id() is None:
+        return redirect(url_for("auth.login"))
+    ids = request.form.getlist("order_ids")
+    if not ids:
+        flash("请先勾选要支付的订单", "error")
+        return redirect(url_for("user.orders"))
+
+    paid = 0
+    expired = 0
+    for oid in ids:
+        try:
+            oid_int = int(oid)
+        except (TypeError, ValueError):
+            continue
+        order = Order.query.filter_by(id=oid_int, user_id=current_user_id()).first()
+        if not order or order.status != "待支付":
+            continue
+        if order.pay_deadline and datetime.now() > order.pay_deadline:
+            order.status = "已取消"
+            expired += 1
+        else:
+            order.status = "待发货"
+            paid += 1
+    db.session.commit()
+    if paid:
+        flash(f"成功支付 {paid} 笔订单", "success")
+    if expired:
+        flash(f"{expired} 笔订单已超时被取消", "error")
+    if not paid and not expired:
+        flash("没有可支付的订单", "error")
+    return redirect(url_for("user.orders"))

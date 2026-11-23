@@ -31,20 +31,30 @@
   </div>
 
   {% if orders %}
+  <!-- 批量结算表单：勾选多个待支付订单统一支付 -->
+  <form method="post" action="/user/order/batch-pay" id="batch-form">
   {% for o in orders %}
   <div style="background:#fff;border:1px solid #f0f0f0;border-radius:10px;margin-bottom:14px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.04);">
-    <!-- 订单头部：订单号 + 状态 -->
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;background:#fafafa;border-bottom:1px solid #f0f0f0;">
-      <div style="font-size:13px;color:#999;">
+    <!-- 订单头部：勾选 + 订单号 + 状态 -->
+    <div style="display:flex;align-items:center;gap:12px;padding:12px 18px;background:#fafafa;border-bottom:1px solid #f0f0f0;">
+      {% if o.status == '待支付' %}
+      <input type="checkbox" name="order_ids" value="{{ o.id }}" class="order-check" data-price="{{ o.total_price }}" style="width:16px;height:16px;cursor:pointer;">
+      {% endif %}
+      <div style="font-size:13px;color:#999;flex:1;">
         订单号 #{{ o.id }}
         <span style="margin-left:10px;">{{ o.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+        {% if o.status == '待支付' and o.pay_deadline %}
+        <span style="margin-left:10px;color:#faad14;font-weight:bold;">
+          ⏳ 剩 <span class="countdown" data-deadline="{{ o.pay_deadline.strftime('%Y-%m-%d %H:%M:%S') }}">--:--</span>
+        </span>
+        {% endif %}
       </div>
       {% set status_style = {'待支付':'#faad14','待发货':'#1890ff','运输中':'#722ed1','已完成':'#52c41a','已取消':'#999'} %}
       <span style="font-size:14px;font-weight:bold;color:{{ status_style.get(o.status,'#999') }};">{{ o.status }}</span>
     </div>
     <!-- 商品行 -->
     <div style="display:flex;align-items:center;gap:14px;padding:16px 18px;">
-      <div style="width:60px;height:60px;background:#f8f8f8;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:30px;flex-shrink:0;">🍓</div>
+      <div style="width:60px;height:60px;background:#f8f8f8;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:30px;flex-shrink:0;">{{ o.fruit.emoji or '🍓' }}</div>
       <div style="flex:1;min-width:0;">
         <div style="font-weight:bold;font-size:15px;color:#333;">{{ o.fruit.name }}</div>
         <div style="font-size:12px;color:#999;margin-top:2px;">{{ o.fruit.origin }} · ×{{ o.quantity }}</div>
@@ -53,11 +63,31 @@
         {% endif %}
       </div>
       <div style="text-align:right;flex-shrink:0;">
-        <div style="color:#ff4d4f;font-size:18px;font-weight:bold;">¥{{ o.total_price }}</div>
+        <div style="color:#ff4d4f;font-size:18px;font-weight:bold;">¥{{ '%.2f'|format(o.total_price) }}</div>
+        {% if o.status == '待支付' %}
+        <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end;">
+          <form method="post" action="/user/order/{{ o.id }}/cancel" style="margin:0;" onsubmit="return confirm('确定取消该订单吗？');">
+            <button type="submit" class="btn btn-outline" style="padding:5px 12px;font-size:12px;">取消订单</button>
+          </form>
+          <form method="post" action="/user/order/{{ o.id }}/pay" style="margin:0;">
+            <button type="submit" class="btn btn-primary" style="padding:5px 12px;font-size:12px;">立即支付</button>
+          </form>
+        </div>
+        {% endif %}
       </div>
     </div>
   </div>
   {% endfor %}
+
+  <!-- 底部批量结算栏 -->
+  <div id="batch-bar" style="display:none;position:sticky;bottom:0;background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:14px 18px;margin-top:6px;box-shadow:0 -2px 10px rgba(0,0,0,0.06);align-items:center;justify-content:space-between;">
+    <div style="font-size:14px;">
+      已选 <span id="selected-count" style="color:#ff4d4f;font-weight:bold;">0</span> 单，
+      合计 <span style="color:#ff4d4f;font-size:20px;font-weight:bold;">¥<span id="selected-total">0.00</span></span>
+    </div>
+    <button type="submit" class="btn btn-primary" style="padding:10px 24px;">批量结算</button>
+  </div>
+  </form>
   {% else %}
   <div style="text-align:center;padding:60px 20px;color:#999;">
     <div style="font-size:60px;margin-bottom:16px;">📦</div>
@@ -66,4 +96,42 @@
   </div>
   {% endif %}
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // 订单倒计时
+  function pad(n){ return n < 10 ? '0' + n : n; }
+  document.querySelectorAll('.countdown').forEach(function(el){
+    var deadline = new Date(el.dataset.deadline.replace(' ', 'T')).getTime();
+    function tick(){
+      var left = deadline - Date.now();
+      if (left <= 0) {
+        el.textContent = '00:00';
+        clearInterval(el._timer);
+        return;
+      }
+      var m = Math.floor(left / 60000);
+      var s = Math.floor((left % 60000) / 1000);
+      el.textContent = pad(m) + ':' + pad(s);
+    }
+    tick();
+    el._timer = setInterval(tick, 1000);
+  });
+
+  // 批量结算栏：勾选联动
+  var checks = document.querySelectorAll('.order-check');
+  var bar = document.getElementById('batch-bar');
+  function updateBar(){
+    if (!bar) return;
+    var total = 0, count = 0;
+    checks.forEach(function(c){
+      if (c.checked) { total += parseFloat(c.dataset.price); count++; }
+    });
+    document.getElementById('selected-count').textContent = count;
+    document.getElementById('selected-total').textContent = total.toFixed(2);
+    bar.style.display = count > 0 ? 'flex' : 'none';
+  }
+  checks.forEach(function(c){ c.addEventListener('change', updateBar); });
+</script>
 {% endblock %}

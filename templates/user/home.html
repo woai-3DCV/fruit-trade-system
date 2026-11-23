@@ -49,7 +49,7 @@
     <div class="cat-goods">
       {% for f in fruits %}
       <div class="goods-card">
-        <div class="goods-img">🍓</div>
+        <div class="goods-img">{{ f.emoji or '🍓' }}</div>
         <div class="goods-info">
           <div class="goods-name">{{ f.name }}</div>
           <div class="goods-origin">{{ f.origin }} · {{ f.sub_category }}</div>
@@ -60,9 +60,9 @@
           <div class="goods-sales">已售 {{ f.sales }} 件</div>
         </div>
         <div class="goods-btns">
-          <a href="/user/fruit/{{ f.id }}" style="font-size:12px;color:var(--text-light);text-decoration:none;text-align:center;">详情</a>
+          <a href="/user/fruit/{{ f.id }}" class="btn btn-outline" style="padding:6px 14px;font-size:13px;text-align:center;">详情</a>
           <form method="post" action="/user/cart/add/{{ f.id }}">
-            <button type="submit" class="btn btn-primary" style="padding:6px 14px;font-size:13px;">＋ 加购</button>
+            <button type="submit" class="btn btn-primary" style="padding:6px 14px;font-size:13px;width:100%;">＋ 加购</button>
           </form>
         </div>
       </div>
@@ -78,7 +78,7 @@
     <div class="rec-grid">
       {% for f in recommends %}
       <div class="rec-card">
-        <div class="rec-img">🍓</div>
+        <div class="rec-img">{{ f.emoji or '🍓' }}</div>
         <div class="rec-name">{{ f.name }}</div>
         <div class="rec-price">¥{{ f.price }}<small>/斤</small></div>
         <div><span class="rec-hot">热销 {{ f.sales }}+</span></div>
