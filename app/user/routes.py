@@ -139,8 +139,11 @@ def fruit_detail(fruit_id):
     # 商品评价列表 + 平均分
     reviews = Review.query.filter_by(fruit_id=fruit_id).order_by(Review.created_at.desc()).all()
     avg_rating = round(sum(r.rating for r in reviews) / len(reviews), 1) if reviews else 0
+    # 商品的商家（用于「咨询商家」按钮）
+    merchant = _resolve_merchant(fruit)
     return render_template(
-        "user/fruit_detail.html", fruit=fruit, reviews=reviews, avg_rating=avg_rating
+        "user/fruit_detail.html", fruit=fruit, reviews=reviews, avg_rating=avg_rating,
+        merchant=merchant,
     )
 
 

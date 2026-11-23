@@ -15,7 +15,10 @@
       {% block nav %}{% endblock %}
     </div>
     <div class="user-info">
-      {% block userinfo %}{% endblock %}
+      {% block userinfo %}
+        {% if session.get('username') %}你好，{{ session.get('nickname') or session['username'] }}{% else %}你好，游客{% endif %}
+        <a href="/logout" class="logout-link" title="退出登录">退出</a>
+      {% endblock %}
     </div>
   </nav>
 

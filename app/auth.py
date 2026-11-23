@@ -27,6 +27,7 @@ def login():
         session["user_id"] = user.id
         session["username"] = user.username
         session["role"] = user.role
+        session["nickname"] = user.nickname or user.username
 
         # 根据身份跳转到对应端
         role_index = {

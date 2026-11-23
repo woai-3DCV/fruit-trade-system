@@ -10,9 +10,6 @@
   <a href="/user/profile" class="active">个人中心</a>
 {% endblock %}
 
-{% block userinfo %}
-  {% if session.get('username') %}{{ user.avatar or '😊' }} {{ user.nickname or session['username'] }}{% else %}你好，游客{% endif %}
-{% endblock %}
 
 {% block content %}
 

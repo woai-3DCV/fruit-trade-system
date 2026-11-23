@@ -10,11 +10,10 @@
   <a href="/user/profile">个人中心</a>
 {% endblock %}
 
-{% block userinfo %}
-  {% if session.get('username') %}你好，{{ session['username'] }}{% else %}你好，游客{% endif %}
-{% endblock %}
 
 {% block content %}
+
+  <style>.ai-fab { display: none !important; }</style>
 
   <div class="card" style="max-width:640px;margin:0 auto;display:flex;flex-direction:column;height:calc(100vh - 160px);min-height:480px;">
     <!-- 头部 -->
