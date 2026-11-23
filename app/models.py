@@ -104,6 +104,19 @@ class BrowseHistory(db.Model):
     viewed_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class Message(db.Model):
+    """用户↔商家私信（咨询/客服）。"""
+    __tablename__ = "messages"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)   # 发起咨询的用户
+    merchant_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)  # 被咨询的商家
+    fruit_id = db.Column(db.Integer, db.ForeignKey("fruits.id"))                 # 关联商品（可为空）
+    sender_role = db.Column(db.String(20), nullable=False)  # user / merchant（谁发的）
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 # ============================================================
 # 商家端表（B 负责）
 # ============================================================

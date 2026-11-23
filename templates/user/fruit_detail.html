@@ -27,7 +27,7 @@
         <tr><th>状态</th><td>{{ '在售' if fruit.is_on_sale else '已下架' }}</td></tr>
       </tbody>
     </table>
-    <div style="margin-top:20px;display:flex;align-items:center;gap:16px;">
+    <div style="margin-top:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
       <form method="post" action="/user/cart/add/{{ fruit.id }}" style="display:flex;align-items:center;gap:12px;">
         <div class="qty-stepper">
           <button type="button" class="qty-btn" onclick="changeQty(-1)">−</button>
@@ -37,6 +37,7 @@
         <span style="color:var(--text-light);">斤</span>
         <button type="submit" class="btn btn-primary">加入购物车</button>
       </form>
+      <a href="/user/chat/{{ fruit.merchant_id or 2 }}/{{ fruit.id }}" class="btn btn-outline" style="text-decoration:none;">💬 咨询商家</a>
     </div>
   </div>
 

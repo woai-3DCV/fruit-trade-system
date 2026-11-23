@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}AI 智能助手 - 水果交易智能管理系统{% endblock %}
+
+{% block nav %}
+  <a href="/user/">首页</a>
+  <a href="/user/seckill">限时秒杀</a>
+  <a href="/user/cart">购物车</a>
+  <a href="/user/orders">我的订单</a>
+  <a href="/user/profile">个人中心</a>
+{% endblock %}
+
+{% block userinfo %}
+  {% if session.get('username') %}你好，{{ session['username'] }}{% else %}你好，游客{% endif %}
+{% endblock %}
+
+{% block content %}
+
+  <div class="card" style="max-width:640px;margin:0 auto;display:flex;flex-direction:column;height:calc(100vh - 160px);min-height:480px;">
+    <!-- 头部 -->
+    <div style="display:flex;align-items:center;gap:10px;padding-bottom:12px;border-bottom:1px solid #f0f0f0;">
+      <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#34a853);display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;">🤖</div>
+      <div>
+        <div style="font-weight:bold;font-size:15px;">AI 智能助手</div>
+        <div style="font-size:12px;color:#999;">随时为你解答购物问题</div>
+      </div>
+    </div>
+
+    <!-- 消息区 -->
+    <div id="msg-area" style="flex:1;overflow-y:auto;padding:16px 4px;">
+      <div style="display:flex;justify-content:flex-start;margin-bottom:12px;">
+        <div style="max-width:70%;padding:10px 14px;border-radius:12px;font-size:14px;line-height:1.5;background:#f5f5f5;color:#333;border-bottom-left-radius:2px;">
+          👋 你好呀！我是小果，你的智能购物助手～<br>可以问我秒杀、优惠、退款、配送、地址等问题，也可以让我帮你推荐水果哦！
+        </div>
+      </div>
+    </div>
+
+    <!-- 快捷问题 -->
+    <div id="quick-bar" style="display:flex;flex-wrap:wrap;gap:8px;padding:8px 0;">
+      {% for q in quick_questions %}
+      <button type="button" class="quick-btn" data-q="{{ q }}" style="padding:6px 12px;border:1px solid var(--border);border-radius:16px;background:#fff;font-size:13px;color:#555;cursor:pointer;">{{ q }}</button>
+      {% endfor %}
+    </div>
+
+    <!-- 输入区 -->
+    <div style="display:flex;gap:8px;padding-top:8px;border-top:1px solid #f0f0f0;">
+      <input type="text" id="ai-input" placeholder="输入你的问题..." autocomplete="off"
+             style="flex:1;padding:10px 14px;border:1px solid var(--border);border-radius:20px;font-size:14px;">
+      <button type="button" id="ai-send" class="btn btn-primary" style="padding:10px 20px;border-radius:20px;font-size:14px;">发送</button>
+    </div>
+  </div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  var area = document.getElementById('msg-area');
+  var input = document.getElementById('ai-input');
+
+  function addMsg(text, isUser) {
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;justify-content:' + (isUser ? 'flex-end' : 'flex-start') + ';margin-bottom:12px;';
+    var bubble = document.createElement('div');
+    bubble.style.cssText = 'max-width:70%;padding:10px 14px;border-radius:12px;font-size:14px;line-height:1.5;' +
+      (isUser ? 'background:var(--primary);color:#fff;border-bottom-right-radius:2px;' : 'background:#f5f5f5;color:#333;border-bottom-left-radius:2px;');
+    bubble.textContent = text;
+    wrap.appendChild(bubble);
+    area.appendChild(wrap);
+    area.scrollTop = area.scrollHeight;
+  }
+
+  function ask(text) {
+    if (!text) return;
+    addMsg(text, true);
+    fetch('/user/ai/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'question=' + encodeURIComponent(text)
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      addMsg(data.answer || '抱歉，我没听懂，换个问法试试～', false);
+    })
+    .catch(function(){
+      addMsg('网络出错了，请稍后再试～', false);
+    });
+  }
+
+  document.getElementById('ai-send').addEventListener('click', function(){
+    var v = input.value.trim();
+    input.value = '';
+    ask(v);
+  });
+  input.addEventListener('keydown', function(e){
+    if (e.key === 'Enter') {
+      var v = input.value.trim();
+      input.value = '';
+      ask(v);
+    }
+  });
+  document.querySelectorAll('.quick-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){ ask(btn.dataset.q); });
+  });
+</script>
+{% endblock %}

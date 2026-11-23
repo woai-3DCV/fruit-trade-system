@@ -7,7 +7,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, sessio
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from app.models import db, User, Fruit, Cart, Order, SeckillActivity, BrowseHistory, Address
+from app.models import db, User, Fruit, Cart, Order, SeckillActivity, BrowseHistory, Address, Message
 from app.user.seckill_service import seckill_service
 from app.user.recommend_service import recommend_service
 
@@ -512,3 +512,130 @@ def address_set_default(addr_id):
     db.session.commit()
     flash("已设为默认地址", "success")
     return redirect(url_for("user.profile"))
+
+
+# ---------------- 私信商家（咨询） ----------------
+
+def _resolve_merchant(fruit):
+    """确定商品的商家：优先 fruit.merchant_id，否则回退到第一个 merchant 账号。"""
+    if fruit and fruit.merchant_id:
+        m = User.query.get(fruit.merchant_id)
+        if m:
+            return m
+    return User.query.filter_by(role="merchant").first()
+
+
+@user_bp.route("/chat")
+def chat_list():
+    """我的咨询会话列表（按商家/商品聚合）。"""
+    user = _require_login()
+    if user is None:
+        return redirect(url_for("auth.login"))
+    # 取出我参与的所有会话，按商家+商品分组
+    my_msgs = Message.query.filter_by(user_id=user.id).order_by(Message.created_at.desc()).all()
+    # 按 (merchant_id, fruit_id) 聚合
+    sessions = {}
+    for m in my_msgs:
+        key = (m.merchant_id, m.fruit_id or 0)
+        if key not in sessions:
+            merchant = User.query.get(m.merchant_id)
+            fruit = Fruit.query.get(m.fruit_id) if m.fruit_id else None
+            sessions[key] = {
+                "merchant": merchant,
+                "fruit": fruit,
+                "last": m,
+            }
+    return render_template("user/chat_list.html", sessions=sessions.values())
+
+
+@user_bp.route("/chat/<int:merchant_id>")
+@user_bp.route("/chat/<int:merchant_id>/<int:fruit_id>")
+def chat_detail(merchant_id, fruit_id=None):
+    """与某商家的聊天窗口（可按商品区分）。"""
+    user = _require_login()
+    if user is None:
+        return redirect(url_for("auth.login"))
+    merchant = User.query.get(merchant_id)
+    fruit = Fruit.query.get(fruit_id) if fruit_id else None
+    q = Message.query.filter_by(user_id=user.id, merchant_id=merchant_id)
+    if fruit_id:
+        q = q.filter_by(fruit_id=fruit_id)
+    msgs = q.order_by(Message.created_at.asc()).all()
+    return render_template("user/chat.html", merchant=merchant, fruit=fruit, msgs=msgs)
+
+
+@user_bp.route("/chat/<int:merchant_id>/send", methods=["POST"])
+@user_bp.route("/chat/<int:merchant_id>/<int:fruit_id>/send", methods=["POST"])
+def chat_send(merchant_id, fruit_id=None):
+    """用户发送私信给商家。"""
+    user = _require_login()
+    if user is None:
+        return redirect(url_for("auth.login"))
+    content = (request.form.get("content") or "").strip()
+    if not content:
+        flash("消息不能为空", "error")
+        return redirect(request.referrer or url_for("user.chat_list"))
+    msg = Message(
+        user_id=user.id,
+        merchant_id=merchant_id,
+        fruit_id=fruit_id,
+        sender_role="user",
+        content=content,
+    )
+    db.session.add(msg)
+    db.session.commit()
+    return redirect(url_for("user.chat_detail", merchant_id=merchant_id, fruit_id=fruit_id) if fruit_id
+                    else url_for("user.chat_detail", merchant_id=merchant_id))
+
+
+# ---------------- AI 智能助手 ----------------
+
+AI_KEYWORDS = {
+    "秒杀": "限时秒杀在「限时秒杀」专区，价格超低，先到先得！每次限购 1 件，手慢无哦～",
+    "优惠": "可以关注「限时秒杀」专区，热门水果有折扣价，比如丹东草莓秒杀价 ¥9.9！",
+    "推荐": "可以看首页底部的「猜你喜欢」，根据你的浏览记录智能推荐水果～",
+    "退款": "在「我的订单」找到对应订单，超时可申请售后。需要帮助可以私信商家或联系平台。",
+    "退货": "售后问题可以在「我的订单」发起售后申请，商家会尽快处理。",
+    "配送": "订单发货后可在「我的订单」查看物流状态，全程冷链配送。",
+    "物流": "订单运输中会实时更新位置，冷链温控全程监控，保证水果新鲜。",
+    "地址": "在「个人中心 → 收货地址」可以添加和管理收货地址。",
+    "密码": "在「个人中心 → 安全设置」可以修改登录密码。",
+    "支付": "支持微信支付、支付宝、银行卡支付三种方式。",
+    "客服": "可以在商品详情页点击「咨询商家」私信商家，或在这里问我～",
+    "新鲜": "我们所有水果都是产地直采、冷链配送，保证新鲜。",
+    "售后": "在「我的订单」可以对已完成订单发起售后申请（退款/退货）。",
+}
+
+AI_QUICK_QUESTIONS = ["怎么参加秒杀？", "有什么优惠吗？", "怎么退款？", "怎么改收货地址？", "支持哪些支付方式？", "帮我推荐水果"]
+
+
+@user_bp.route("/ai")
+def ai_assistant():
+    """AI 智能助手页面。"""
+    return render_template("user/ai.html", quick_questions=AI_QUICK_QUESTIONS)
+
+
+@user_bp.route("/ai/ask", methods=["POST"])
+def ai_ask():
+    """AI 助手问答（关键词匹配 + 推荐兜底）。"""
+    user = _require_login()
+    question = (request.form.get("question") or "").strip()
+    if not question:
+        return {"answer": "请先输入问题哦～"}, 400
+
+    answer = None
+    for kw, resp in AI_KEYWORDS.items():
+        if kw in question:
+            answer = resp
+            break
+
+    # 兜底：推荐热门水果
+    if answer is None:
+        hot = Fruit.query.filter_by(is_on_sale=True).order_by(Fruit.sales.desc()).limit(3).all()
+        if hot:
+            names = "、".join(f"{f.emoji}{f.name}(¥{f.price})" for f in hot)
+            answer = f"这个问题我还不太会，不过可以看看这些热销水果：{names}。也可以私信商家咨询哦～"
+        else:
+            answer = "这个问题我还不太会，建议私信商家或联系平台客服哦～"
+
+    return {"answer": answer}

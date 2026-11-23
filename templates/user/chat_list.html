@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}我的咨询 - 水果交易智能管理系统{% endblock %}
+
+{% block nav %}
+  <a href="/user/">首页</a>
+  <a href="/user/seckill">限时秒杀</a>
+  <a href="/user/cart">购物车</a>
+  <a href="/user/orders">我的订单</a>
+  <a href="/user/profile">个人中心</a>
+{% endblock %}
+
+{% block userinfo %}
+  {% if session.get('username') %}你好，{{ session['username'] }}{% else %}你好，游客{% endif %}
+{% endblock %}
+
+{% block content %}
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div style="display:flex;align-items:center;gap:8px;background:{{ '#fff1f0' if category=='error' else '#f0f9eb' }};border:1px solid {{ '#ffccc7' if category=='error' else '#b7eb8f' }};color:{{ '#cf1322' if category=='error' else '#389e0d' }};padding:10px 14px;border-radius:6px;margin-bottom:14px;font-size:14px;">
+          <span>{{ '⚠️' if category=='error' else '✅' }}</span><span>{{ message }}</span>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+    <span style="font-size:20px;font-weight:bold;">💬 我的咨询</span>
+    <a href="/user/ai" style="font-size:13px;color:var(--primary);text-decoration:none;">🤖 AI 助手</a>
+  </div>
+
+  {% if sessions %}
+    {% for s in sessions %}
+    {% set m = s.last %}
+    {% set target = '/user/chat/' ~ m.merchant_id ~ ('/' ~ m.fruit_id if m.fruit_id else '') %}
+    <a href="{{ target }}" style="text-decoration:none;color:inherit;display:block;">
+      <div class="card" style="display:flex;align-items:center;gap:12px;margin-bottom:12px;cursor:pointer;">
+        <div style="width:48px;height:48px;border-radius:50%;background:var(--primary-light);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">🏪</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:bold;font-size:15px;">{{ s.merchant.nickname or s.merchant.username }}</div>
+          <div style="font-size:13px;color:#999;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            {% if s.fruit %}{{ s.fruit.emoji }} {{ s.fruit.name }} · {% endif %}{{ m.content }}
+          </div>
+        </div>
+        <div style="font-size:12px;color:#bbb;flex-shrink:0;">{{ m.created_at.strftime('%m-%d %H:%M') }}</div>
+      </div>
+    </a>
+    {% endfor %}
+  {% else %}
+  <div style="text-align:center;padding:60px 20px;color:#999;">
+    <div style="font-size:60px;margin-bottom:16px;">💬</div>
+    <div style="font-size:16px;margin-bottom:20px;">还没有咨询记录</div>
+    <div style="font-size:13px;margin-bottom:16px;">在商品详情页点击「咨询商家」即可发起私信</div>
+    <a href="/user/" class="btn btn-primary">去逛逛</a>
+  </div>
+  {% endif %}
+
+{% endblock %}

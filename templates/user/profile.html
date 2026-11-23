@@ -42,10 +42,32 @@
     </div>
   </div>
 
+  <!-- ===== 快捷入口 ===== -->
+  <div style="display:flex;gap:12px;margin-bottom:16px;">
+    <a href="/user/chat" style="flex:1;text-decoration:none;color:inherit;">
+      <div class="card" style="display:flex;align-items:center;gap:10px;margin-bottom:0;cursor:pointer;">
+        <div style="width:40px;height:40px;border-radius:10px;background:var(--primary-light);display:flex;align-items:center;justify-content:center;font-size:20px;">💬</div>
+        <div>
+          <div style="font-weight:bold;font-size:14px;">我的咨询</div>
+          <div style="font-size:12px;color:#999;">私信商家</div>
+        </div>
+      </div>
+    </a>
+    <a href="/user/ai" style="flex:1;text-decoration:none;color:inherit;">
+      <div class="card" style="display:flex;align-items:center;gap:10px;margin-bottom:0;cursor:pointer;">
+        <div style="width:40px;height:40px;border-radius:10px;background:#e8f5e9;display:flex;align-items:center;justify-content:center;font-size:20px;">🤖</div>
+        <div>
+          <div style="font-weight:bold;font-size:14px;">AI 助手</div>
+          <div style="font-size:12px;color:#999;">智能客服</div>
+        </div>
+      </div>
+    </a>
+  </div>
+
   <!-- ===== 标签页切换 ===== -->
   <div class="tab-bar">
     <button class="tab-item active" data-tab="basic">基础资料</button>
-    <button class="tab-item" data-tab="address">收货地址 <span class="tab-badge">{{ addresses|length }}</span></button>
+    <button class="tab-item" data-tab="address">收货地址</button>
     <button class="tab-item" data-tab="security">安全设置</button>
   </div>
 

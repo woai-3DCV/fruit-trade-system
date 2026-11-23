@@ -24,6 +24,11 @@
     {% block content %}{% endblock %}
   </div>
 
+  <!-- ===== 全局 AI 助手悬浮球（登录后显示） ===== -->
+  {% if session.get('user_id') %}
+  <a href="/user/ai" class="ai-fab" title="AI 智能助手">🤖</a>
+  {% endif %}
+
   {% block content_extra %}{% endblock %}
 
   {% block scripts %}{% endblock %}
