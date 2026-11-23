@@ -38,6 +38,8 @@ class Order(db.Model):
     is_seckill = db.Column(db.Boolean, default=False)   # 是否秒杀订单
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    fruit = db.relationship("Fruit", backref="orders")
+
 
 # ============================================================
 # 用户端表（组长负责）
@@ -52,6 +54,8 @@ class Cart(db.Model):
     fruit_id = db.Column(db.Integer, db.ForeignKey("fruits.id"), nullable=False)
     quantity = db.Column(db.Integer, default=1)
 
+    fruit = db.relationship("Fruit", backref="cart_items")
+
 
 class SeckillActivity(db.Model):
     """限时秒杀活动（创新点）。"""
@@ -60,11 +64,14 @@ class SeckillActivity(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     fruit_id = db.Column(db.Integer, db.ForeignKey("fruits.id"), nullable=False)
     seckill_price = db.Column(db.Float, nullable=False)   # 秒杀价
-    stock = db.Column(db.Integer, nullable=False)          # 秒杀库存
+    stock = db.Column(db.Integer, nullable=False)          # 剩余库存（原子扣减用）
+    total_stock = db.Column(db.Integer, nullable=False)    # 初始总库存（算"已抢"进度）
     limit_per_user = db.Column(db.Integer, default=1)      # 限购数量
     start_time = db.Column(db.DateTime, nullable=False)
     end_time = db.Column(db.DateTime, nullable=False)
     status = db.Column(db.String(20), default="未开始")    # 未开始/进行中/已结束
+
+    fruit = db.relationship("Fruit", backref="seckills")  # 关联水果，方便取名字/图片
 
 
 class BrowseHistory(db.Model):
@@ -87,9 +94,11 @@ class Fruit(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(64), nullable=False)
-    category = db.Column(db.String(64))
+    category = db.Column(db.String(64))          # 大分类（水果/蔬菜/肉禽等）
+    sub_category = db.Column(db.String(64))      # 细分类（苹果/柑橘/莓果等）
     price = db.Column(db.Float)
-    origin = db.Column(db.String(128))       # 产地
+    origin = db.Column(db.String(128))           # 产地
+    sales = db.Column(db.Integer, default=0)     # 销量（支撑热销/进度条）
     merchant_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     is_on_sale = db.Column(db.Boolean, default=True)  # 上架/下架
 

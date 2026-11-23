@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}{{ fruit.name }} - 商品详情{% endblock %}
+
+{% block nav %}
+  <a href="/user/">首页</a>
+  <a href="/user/seckill">限时秒杀</a>
+  <a href="/user/cart">购物车</a>
+  <a href="/user/orders">我的订单</a>
+{% endblock %}
+
+{% block userinfo %}
+  {% if session.get('username') %}你好，{{ session['username'] }}{% else %}你好，游客{% endif %}
+{% endblock %}
+
+{% block content %}
+
+  <div class="card">
+    <div class="card-title">🍎 {{ fruit.name }}</div>
+    <table class="table">
+      <tbody>
+        <tr><th style="width:120px;">分类</th><td>{{ fruit.category }} · {{ fruit.sub_category }}</td></tr>
+        <tr><th>产地</th><td>{{ fruit.origin }}</td></tr>
+        <tr><th>价格</th><td style="color:var(--primary);font-weight:bold;">¥{{ fruit.price }}/斤</td></tr>
+        <tr><th>销量</th><td>已售 {{ fruit.sales }} 件</td></tr>
+        <tr><th>状态</th><td>{{ '在售' if fruit.is_on_sale else '已下架' }}</td></tr>
+      </tbody>
+    </table>
+    <div style="margin-top:20px;display:flex;align-items:center;gap:16px;">
+      <form method="post" action="/user/cart/add/{{ fruit.id }}" style="display:flex;align-items:center;gap:12px;">
+        <div class="qty-stepper">
+          <button type="button" class="qty-btn" onclick="changeQty(-1)">−</button>
+          <input type="number" id="qty" name="quantity" value="1" min="1" max="99" class="qty-input">
+          <button type="button" class="qty-btn" onclick="changeQty(1)">＋</button>
+        </div>
+        <span style="color:var(--text-light);">斤</span>
+        <button type="submit" class="btn btn-primary">加入购物车</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function changeQty(delta) {
+      var el = document.getElementById('qty');
+      var v = parseInt(el.value, 10) || 1;
+      v = Math.max(1, Math.min(99, v + delta));
+      el.value = v;
+    }
+  </script>
+
+{% endblock %}

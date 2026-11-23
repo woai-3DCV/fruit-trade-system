@@ -9,74 +9,86 @@
   <a href="/user/orders">我的订单</a>
 {% endblock %}
 
-{% block userinfo %}你好，普通用户{% endblock %}
+{% block userinfo %}
+  {% if session.get('username') %}你好，{{ session['username'] }}{% else %}你好，游客{% endif %}
+{% endblock %}
 
 {% block content %}
 
-  <!-- 秒杀专区横幅 -->
-  <div class="card">
-    <div class="card-title">⚡ 限时秒杀</div>
-    <p style="color:var(--text-light);margin-bottom:12px;">临期好果，低价清仓，手慢无！</p>
-    <div style="display:flex;gap:16px;flex-wrap:wrap;">
-      <div style="border:1px solid var(--border);border-radius:6px;padding:12px;width:200px;">
-        <div style="font-weight:bold;">丹东草莓 500g</div>
-        <div class="seckill-price">¥9.9 <span style="font-size:13px;color:var(--text-light);text-decoration:line-through;">¥29.9</span></div>
-        <div class="seckill-countdown">距结束 02:35:18</div>
-        <button class="btn btn-danger" style="margin-top:10px;width:100%;">立即抢购</button>
+  <!-- 秒杀横幅 -->
+  <div style="background:linear-gradient(90deg,#ff4d4f,#ff7875);border-radius:10px;padding:14px 18px;margin-bottom:18px;color:#fff;display:flex;align-items:center;gap:12px;">
+    <span style="font-size:22px;">⚡</span>
+    <span style="font-weight:bold;font-size:16px;flex:1;">限时秒杀 · 临期好果低价清仓</span>
+    <a href="/user/seckill" style="color:#fff;font-size:13px;text-decoration:none;">进入专场 →</a>
+  </div>
+
+  <!-- 顶部大分类图标栏 -->
+  <div class="cat-top">
+    {% set cat_icons = {'水果':'🍎','蔬菜':'🥬','肉禽':'🍗','水产':'🦐','粮油':'🌾'} %}
+    <a href="/user/?category=全部" class="cat-top-item {{ 'active' if current_category=='全部' }}">
+      <span class="cat-icon">🗂️</span><span>全部</span>
+    </a>
+    {% for c in all_categories %}
+    <a href="/user/?category={{ c }}" class="cat-top-item {{ 'active' if current_category==c }}">
+      <span class="cat-icon">{{ cat_icons.get(c, '🍊') }}</span><span>{{ c }}</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  <!-- 分类主体：左侧二级分类 + 右侧商品列表 -->
+  <div class="cat-body">
+    <!-- 左侧二级分类栏 -->
+    <div class="cat-side">
+      <a href="/user/?category={{ current_category }}" class="{{ 'active' if not current_sub }}">全部</a>
+      {% for sub in all_sub_cats %}
+      <a href="/user/?category={{ current_category }}&sub={{ sub }}" class="{{ 'active' if current_sub==sub }}">{{ sub }}</a>
+      {% endfor %}
+    </div>
+
+    <!-- 右侧商品列表 -->
+    <div class="cat-goods">
+      {% for f in fruits %}
+      <div class="goods-card">
+        <div class="goods-img">🍓</div>
+        <div class="goods-info">
+          <div class="goods-name">{{ f.name }}</div>
+          <div class="goods-origin">{{ f.origin }} · {{ f.sub_category }}</div>
+          <div class="goods-price-row">
+            <span class="goods-price">¥{{ f.price }}</span>
+            <span class="goods-unit">/斤</span>
+          </div>
+          <div class="goods-sales">已售 {{ f.sales }} 件</div>
+        </div>
+        <div class="goods-btns">
+          <a href="/user/fruit/{{ f.id }}" style="font-size:12px;color:var(--text-light);text-decoration:none;text-align:center;">详情</a>
+          <form method="post" action="/user/cart/add/{{ f.id }}">
+            <button type="submit" class="btn btn-primary" style="padding:6px 14px;font-size:13px;">＋ 加购</button>
+          </form>
+        </div>
       </div>
-      <div style="border:1px solid var(--border);border-radius:6px;padding:12px;width:200px;">
-        <div style="font-weight:bold;">海南香蕉 1kg</div>
-        <div class="seckill-price">¥5.9 <span style="font-size:13px;color:var(--text-light);text-decoration:line-through;">¥12.9</span></div>
-        <div class="seckill-countdown">即将开始 18:00</div>
-        <button class="btn btn-outline" style="margin-top:10px;width:100%;">提醒我</button>
-      </div>
+      {% else %}
+      <div style="grid-column:1/-1;color:var(--text-light);padding:30px;text-align:center;">该分类暂无商品</div>
+      {% endfor %}
     </div>
   </div>
 
-  <!-- 商品分类浏览 -->
-  <div class="card">
-    <div class="card-title">🍎 水果分类</div>
-    <table class="table">
-      <thead>
-        <tr><th>商品</th><th>分类</th><th>产地</th><th>价格</th><th>操作</th></tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>红富士苹果</td><td>苹果</td><td>山东烟台</td><td>¥8.8/斤</td>
-          <td><a href="#" class="btn btn-outline" style="padding:4px 12px;">详情</a></td>
-        </tr>
-        <tr>
-          <td>赣南脐橙</td><td>柑橘</td><td>江西赣州</td><td>¥6.5/斤</td>
-          <td><a href="#" class="btn btn-outline" style="padding:4px 12px;">详情</a></td>
-        </tr>
-        <tr>
-          <td>麒麟西瓜</td><td>瓜类</td><td>海南</td><td>¥3.9/斤</td>
-          <td><a href="#" class="btn btn-outline" style="padding:4px 12px;">详情</a></td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- 个性化推荐 -->
-  <div class="card">
-    <div class="card-title">💡 猜你喜欢（个性化推荐）</div>
-    <p style="color:var(--text-light);margin-bottom:12px;">根据你的浏览和购买记录推荐</p>
-    <div style="display:flex;gap:16px;flex-wrap:wrap;">
-      <div style="border:1px solid var(--border);border-radius:6px;padding:12px;width:180px;">
-        <div style="font-weight:bold;">库尔勒香梨</div>
-        <div style="color:var(--primary);font-weight:bold;">¥7.9/斤</div>
-        <span class="badge badge-green">买了苹果的人还买了</span>
+  <!-- 猜你喜欢（可购买） -->
+  <div class="card" style="margin-top:20px;">
+    <div class="card-title">💡 猜你喜欢</div>
+    <div class="rec-grid">
+      {% for f in recommends %}
+      <div class="rec-card">
+        <div class="rec-img">🍓</div>
+        <div class="rec-name">{{ f.name }}</div>
+        <div class="rec-price">¥{{ f.price }}<small>/斤</small></div>
+        <div><span class="rec-hot">热销 {{ f.sales }}+</span></div>
+        <div style="margin-top:10px;">
+          <form method="post" action="/user/cart/add/{{ f.id }}">
+            <button type="submit" class="btn btn-primary" style="width:100%;">加入购物车</button>
+          </form>
+        </div>
       </div>
-      <div style="border:1px solid var(--border);border-radius:6px;padding:12px;width:180px;">
-        <div style="font-weight:bold;">阳光玫瑰葡萄</div>
-        <div style="color:var(--primary);font-weight:bold;">¥19.9/斤</div>
-        <span class="badge badge-green">当季热销</span>
-      </div>
-      <div style="border:1px solid var(--border);border-radius:6px;padding:12px;width:180px;">
-        <div style="font-weight:bold;">云南蓝莓</div>
-        <div style="color:var(--primary);font-weight:bold;">¥25.0/盒</div>
-        <span class="badge badge-green">浏览过</span>
-      </div>
+      {% endfor %}
     </div>
   </div>
 

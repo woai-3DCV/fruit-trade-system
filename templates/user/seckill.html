@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}限时秒杀 - 水果交易智能管理系统{% endblock %}
+
+{% block nav %}
+  <a href="/user/">首页</a>
+  <a href="/user/seckill" class="active">限时秒杀</a>
+  <a href="/user/cart">购物车</a>
+  <a href="/user/orders">我的订单</a>
+{% endblock %}
+
+{% block userinfo %}
+  {% if session.get('username') %}你好，{{ session['username'] }}{% else %}你好，游客{% endif %}
+{% endblock %}
+
+{% block content %}
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div style="display:flex;align-items:center;gap:8px;background:{{ '#fff1f0' if category=='error' else '#f0f9eb' }};border:1px solid {{ '#ffccc7' if category=='error' else '#b7eb8f' }};color:{{ '#cf1322' if category=='error' else '#389e0d' }};padding:10px 14px;border-radius:6px;margin-bottom:14px;font-size:14px;">
+          <span>{{ '⚠️' if category=='error' else '✅' }}</span><span>{{ message }}</span>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <!-- 顶部标题条 -->
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+    <span style="font-size:20px;font-weight:bold;">⚡ 限时秒杀</span>
+    <span style="font-size:13px;color:#999;">临期好果 · 手慢无</span>
+  </div>
+
+  {% for item in seckill_list %}
+    {% set s = item.activity %}
+    {% set remaining = item.remaining %}
+    {% set sold = s.total_stock - remaining %}
+    {% set pct = ((sold / s.total_stock * 100) if s.total_stock > 0 else 100) | round | int %}
+  <div style="background:#fff;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,0.08);margin-bottom:16px;overflow:hidden;border:1px solid #f0f0f0;">
+    <!-- 卡片主体：左图 + 中间信息 + 右按钮 -->
+    <div style="display:flex;align-items:center;padding:16px 18px;gap:16px;">
+      <!-- 左侧商品图 -->
+      <div style="width:80px;height:80px;background:linear-gradient(135deg,#fff5f5,#ffe8e8);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:40px;flex-shrink:0;">🍓</div>
+      <!-- 中间信息 -->
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="background:linear-gradient(90deg,#ff4d4f,#ff7875);color:#fff;font-size:12px;font-weight:bold;padding:2px 8px;border-radius:4px;">秒杀</span>
+          <span style="font-weight:bold;font-size:17px;color:#333;">{{ s.fruit.name }}</span>
+        </div>
+        <div style="margin-top:8px;display:flex;align-items:baseline;gap:8px;">
+          <span style="color:#ff4d4f;font-size:30px;font-weight:bold;line-height:1;">¥{{ s.seckill_price }}</span>
+          <span style="color:#bbb;font-size:14px;text-decoration:line-through;">¥{{ s.fruit.price }}</span>
+          <span style="font-size:12px;color:#ff4d4f;background:#fff1f0;padding:2px 6px;border-radius:4px;">已抢 {{ sold }}/{{ s.total_stock }} 件</span>
+        </div>
+        <div style="margin-top:10px;">
+          <!-- 进度条 -->
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="flex:1;background:#ffe8e8;height:10px;border-radius:5px;overflow:hidden;">
+              <div style="background:linear-gradient(90deg,#ff4d4f,#ff9c9c);height:100%;width:{{ pct }}%;border-radius:5px;transition:width 0.3s;"></div>
+            </div>
+            <span style="font-size:12px;color:#ff4d4f;font-weight:bold;white-space:nowrap;">{{ pct }}%</span>
+          </div>
+          <!-- 倒计时 -->
+          <div style="margin-top:8px;display:flex;align-items:center;gap:6px;font-size:13px;color:#666;">
+            <span>{% if s.status == '未开始' %}距开始{% else %}距结束{% endif %}</span>
+            <span class="seckill-timer"
+                  data-end="{{ (s.start_time if s.status=='未开始' else s.end_time).strftime('%Y-%m-%dT%H:%M:%S') }}"
+                  style="display:inline-flex;gap:4px;">
+              <b style="background:#333;color:#fff;padding:3px 6px;border-radius:4px;font-family:monospace;font-size:13px;">00</b><span style="color:#333;">:</span>
+              <b style="background:#333;color:#fff;padding:3px 6px;border-radius:4px;font-family:monospace;font-size:13px;">00</b><span style="color:#333;">:</span>
+              <b style="background:#333;color:#fff;padding:3px 6px;border-radius:4px;font-family:monospace;font-size:13px;">00</b>
+            </span>
+          </div>
+        </div>
+      </div>
+      <!-- 右侧按钮 -->
+      <div style="flex-shrink:0;">
+        {% if s.status == '进行中' and remaining > 0 %}
+        <form method="post" action="/user/seckill/{{ s.id }}/buy" style="margin:0;">
+          <button type="submit" style="background:linear-gradient(90deg,#ff4d4f,#ff7875);color:#fff;font-weight:bold;border:none;border-radius:22px;padding:12px 26px;cursor:pointer;font-size:15px;box-shadow:0 4px 10px rgba(255,77,79,0.35);">立即抢购</button>
+        </form>
+        {% elif remaining <= 0 %}
+        <button style="background:#e8e8e8;color:#999;border:none;border-radius:22px;padding:12px 26px;font-size:15px;cursor:not-allowed;">已售罄</button>
+        {% else %}
+        <button style="background:#e8e8e8;color:#999;border:none;border-radius:22px;padding:12px 26px;font-size:15px;cursor:not-allowed;">未开始</button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="card"><p style="color:var(--text-light);">暂无秒杀活动</p></div>
+  {% endfor %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // 倒计时：时:分:秒 分别显示，每秒跳动
+  document.querySelectorAll('.seckill-timer').forEach(function(el){
+    var end = new Date(el.getAttribute('data-end').replace(' ', 'T'));
+    var boxes = el.querySelectorAll('b');
+    function pad(n){ return (n < 10 ? '0' + n : '' + n); }
+    function tick(){
+      var diff = end - new Date();
+      if (diff <= 0) {
+        boxes.forEach(function(b){ b.textContent = '00'; });
+        clearInterval(timer);
+        return;
+      }
+      var h = Math.floor(diff / 3600000);
+      var m = Math.floor((diff % 3600000) / 60000);
+      var s = Math.floor((diff % 60000) / 1000);
+      var vals = [pad(h), pad(m), pad(s)];
+      boxes.forEach(function(b, i){ b.textContent = vals[i]; });
+    }
+    tick();
+    var timer = setInterval(tick, 1000);
+  });
+</script>
+{% endblock %}
