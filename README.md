@@ -29,9 +29,9 @@ fruit-trade-system/
 │   ├── __init__.py       # Flask 应用工厂（共享，改前先在群里说）
 │   ├── models.py         # 数据库模型（共享，改前先在群里说）
 │   ├── user/             # 用户端（组长）
-│   ├── merchant/         # 商家端（B）
-│   ├── admin/            # 平台管理端（C）
-│   └── logistics/        # 物流端（D）
+│   ├── merchant/         # 商家端（何丹婷）
+│   ├── admin/            # 平台管理端（王琰）
+│   └── logistics/        # 物流端（陆东平）
 ├── docs/                 # UML 图、文档
 ├── tests/                # 测试
 └── requirements.txt
@@ -41,10 +41,10 @@ fruit-trade-system/
 
 - `main`：主分支，只有能跑通的代码才合入
 - 每人一个分支：
-  - `feature/user`（组长）
+  - `feature/user`（何丹婷）
   - `feature/merchant`（B）
-  - `feature/admin`（C）
-  - `feature/logistics`（D）
+  - `feature/admin`（王琰）
+  - `feature/logistics`（陆东平）
 
 ## 启动方式
 
