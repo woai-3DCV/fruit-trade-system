@@ -41,8 +41,8 @@ fruit-trade-system/
 
 - `main`：主分支，只有能跑通的代码才合入
 - 每人一个分支：
-  - `feature/user`（何丹婷）
-  - `feature/merchant`（B）
+  - `feature/user`（组长）
+  - `feature/merchant`（何丹婷）
   - `feature/admin`（王琰）
   - `feature/logistics`（陆东平）
 
