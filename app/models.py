@@ -31,6 +31,7 @@ class User(db.Model):
     avatar = db.Column(db.String(8), default="😊")   # 头像 emoji（默认，未上传图片时用）
     avatar_url = db.Column(db.Text)                  # 头像图片（base64 data URL，拍照/相册上传）
     gender = db.Column(db.String(8))                 # 男/女/保密
+    last_lottery_date = db.Column(db.String(10))     # 上次抽奖日期（YYYY-MM-DD，用于每日仅一次抽奖）
     created_at = db.Column(db.DateTime, default=_now)
 
 
@@ -50,6 +51,9 @@ class Order(db.Model):
     address = db.Column(db.String(255))                 # 收货地址（下单时快照）
     payment_method = db.Column(db.String(20))           # 支付方式：微信/支付宝/余额
     paid_at = db.Column(db.DateTime)                    # 支付时间
+    completed_at = db.Column(db.DateTime)               # 确认收货时间（运输中→已完成）
+    coupon_id = db.Column(db.Integer, db.ForeignKey("coupons.id"))  # 使用的优惠券（可空）
+    discount = db.Column(db.Float, default=0)           # 优惠券抵扣金额
 
     fruit = db.relationship("Fruit", backref="orders")
 
@@ -109,6 +113,35 @@ class BrowseHistory(db.Model):
     viewed_at = db.Column(db.DateTime, default=_now)
 
 
+class Favorite(db.Model):
+    """商品收藏（电商标配，也是推荐信号）。"""
+    __tablename__ = "favorites"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    fruit_id = db.Column(db.Integer, db.ForeignKey("fruits.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=_now)
+
+    fruit = db.relationship("Fruit", backref="favorites")
+
+
+class Coupon(db.Model):
+    """优惠券（用户持有的券，抽奖式发放 + 下单抵扣）。"""
+    __tablename__ = "coupons"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    amount = db.Column(db.Float, nullable=False)            # 面额（抵扣金额，元）
+    threshold = db.Column(db.Float, default=0)              # 满减门槛（满 X 元可用，0 表示无门槛）
+    name = db.Column(db.String(64), default="优惠券")        # 券名
+    status = db.Column(db.String(20), default="未使用")      # 未使用/已使用/已过期
+    obtained_at = db.Column(db.DateTime, default=_now)       # 领取时间
+    used_at = db.Column(db.DateTime)                         # 使用时间
+    expire_at = db.Column(db.DateTime)                       # 有效期截止（可为空=不过期）
+
+    user = db.relationship("User", backref="coupons")
+
+
 class Message(db.Model):
     """用户↔商家私信（咨询/客服）。"""
     __tablename__ = "messages"
@@ -154,6 +187,7 @@ class Fruit(db.Model):
     price = db.Column(db.Float)
     origin = db.Column(db.String(128))           # 产地
     sales = db.Column(db.Integer, default=0)     # 销量（支撑热销/进度条）
+    stock = db.Column(db.Integer, default=0)     # 当前可售库存（下单校验用）
     merchant_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     is_on_sale = db.Column(db.Boolean, default=True)  # 上架/下架
 

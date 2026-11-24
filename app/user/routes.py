@@ -7,13 +7,22 @@ from flask import Blueprint, render_template, request, redirect, url_for, sessio
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from app.models import db, User, Fruit, Cart, Order, SeckillActivity, BrowseHistory, Address, Message, AfterSale, Review
+from app.models import db, User, Fruit, Cart, Order, SeckillActivity, BrowseHistory, Address, Message, AfterSale, Review, Favorite, Coupon
 from app.user.seckill_service import seckill_service
 from app.user.recommend_service import recommend_service
 from app.user import ai_service
 
 # 待支付订单的支付超时时间（分钟），超时自动取消
 PAY_TIMEOUT_MINUTES = 15
+
+# 抽奖式优惠券池：(面额, 满减门槛, 券名)。金额从小到大，权重由 random 控制。
+COUPON_POOL = [
+    (5, 0, "无门槛券"),
+    (10, 50, "满50减10"),
+    (15, 80, "满80减15"),
+    (20, 100, "满100减20"),
+    (30, 150, "满150减30"),
+]
 
 user_bp = Blueprint("user", __name__, url_prefix="/user")
 
@@ -63,6 +72,10 @@ def home():
     # 个性化推荐：按销量 + 浏览历史综合推荐
     recommends = recommend_service.recommend_for_user(current_user_id(), limit=6)
 
+    # 今日是否已抽奖（用于首页是否弹出抽奖弹窗，每日仅一次）
+    user = User.query.get(current_user_id()) if current_user_id() else None
+    can_lottery = bool(user and not _already_lottery_today(user))
+
     return render_template(
         "user/home.html",
         fruits=fruits,
@@ -73,6 +86,7 @@ def home():
         current_category=category,
         current_sub=sub,
         keyword=keyword,
+        can_lottery=can_lottery,
     )
 
 
@@ -82,11 +96,12 @@ def home():
 def seckill():
     """限时秒杀专区。"""
     seckills = SeckillActivity.query.all()
-    # 计算每个活动的真实剩余库存（从 seckill_service 的内存/Redis 里取）
+    # 计算每个活动的真实剩余库存 + 动态状态（按时间实时判断）
     result = []
     for s in seckills:
         remaining = seckill_service.get_remaining_stock(s.id)
-        result.append({"activity": s, "remaining": remaining})
+        status = seckill_service.get_status(s)  # 动态状态，不依赖写死的字段
+        result.append({"activity": s, "remaining": remaining, "status": status})
     return render_template("user/seckill.html", seckill_list=result)
 
 
@@ -97,31 +112,26 @@ def seckill_buy(activity_id):
         flash("请先登录", "error")
         return redirect(url_for("auth.login"))
 
+    # 活动状态校验：未开始/已结束不允许抢购
+    activity = SeckillActivity.query.get(activity_id)
+    if not activity:
+        flash("秒杀活动不存在", "error")
+        return redirect(url_for("user.seckill"))
+    status = seckill_service.get_status(activity)
+    if status != "进行中":
+        flash("该秒杀活动" + ("尚未开始" if status == "未开始" else "已结束"), "error")
+        return redirect(url_for("user.seckill"))
+
     result = seckill_service.seckill(activity_id, current_user_id())
 
     if result == "SUCCESS":
-        # 生成秒杀订单（收货地址取默认地址，没有则留空）
-        activity = SeckillActivity.query.get(activity_id)
-        fruit = Fruit.query.get(activity.fruit_id)
-        addr = Address.query.filter_by(user_id=current_user_id(), is_default=True).first()
-        addr_snapshot = f"{addr.receiver} {addr.phone} {addr.detail}" if addr else ""
-        order = Order(
-            user_id=current_user_id(),
-            fruit_id=activity.fruit_id,
-            quantity=1,
-            total_price=activity.seckill_price,
-            status="待支付",
-            is_seckill=True,
-            pay_deadline=datetime.now() + timedelta(minutes=PAY_TIMEOUT_MINUTES),
-            address=addr_snapshot,
-        )
-        db.session.add(order)
-        db.session.commit()
-        flash("🎉 抢购成功！请尽快支付", "success")
+        # 抢购成功：订单已入队异步生成，无需在此同步建单
+        flash("🎉 抢购成功！订单正在生成，请到「我的订单」查看并尽快支付", "success")
     elif result == "REPEAT_BUY":
         flash("你已抢过该商品（限购）", "error")
+    elif result == "LIMITED":
+        flash("当前抢购人数过多，请稍后再试", "error")
     else:
-        # 售罄时，若库存扣减因数据库一致性问题失败，回滚内存标记
         flash("手慢了，已售罄", "error")
 
     return redirect(url_for("user.seckill"))
@@ -148,9 +158,14 @@ def fruit_detail(fruit_id):
     avg_rating = round(sum(r.rating for r in reviews) / len(reviews), 1) if reviews else 0
     # 商品的商家（用于「咨询商家」按钮）
     merchant = _resolve_merchant(fruit)
+    # 当前用户是否已收藏
+    is_fav = bool(
+        current_user_id()
+        and Favorite.query.filter_by(user_id=current_user_id(), fruit_id=fruit_id).first()
+    )
     return render_template(
         "user/fruit_detail.html", fruit=fruit, reviews=reviews, avg_rating=avg_rating,
-        merchant=merchant,
+        merchant=merchant, is_fav=is_fav,
     )
 
 
@@ -182,6 +197,121 @@ def fruit_review(fruit_id):
     return redirect(url_for("user.fruit_detail", fruit_id=fruit_id))
 
 
+# ---------------- 商品收藏 ----------------
+
+@user_bp.route("/favorite/toggle/<int:fruit_id>", methods=["POST"])
+def favorite_toggle(fruit_id):
+    """收藏/取消收藏商品。"""
+    if current_user_id() is None:
+        flash("请先登录", "error")
+        return redirect(url_for("auth.login"))
+    fruit = Fruit.query.get(fruit_id)
+    if not fruit:
+        flash("商品不存在", "error")
+        return redirect(request.referrer or url_for("user.home"))
+
+    fav = Favorite.query.filter_by(user_id=current_user_id(), fruit_id=fruit_id).first()
+    if fav:
+        db.session.delete(fav)
+        db.session.commit()
+        flash("已取消收藏", "success")
+    else:
+        db.session.add(Favorite(user_id=current_user_id(), fruit_id=fruit_id))
+        db.session.commit()
+        flash("已收藏，可在个人中心查看", "success")
+    return redirect(request.referrer or url_for("user.fruit_detail", fruit_id=fruit_id))
+
+
+@user_bp.route("/favorites")
+def favorites():
+    """我的收藏列表。"""
+    user = _require_login()
+    if user is None:
+        flash("请先登录", "error")
+        return redirect(url_for("auth.login"))
+    favs = (
+        Favorite.query.filter_by(user_id=user.id)
+        .order_by(Favorite.created_at.desc()).all()
+    )
+    return render_template("user/favorites.html", favs=favs)
+
+
+# ---------------- 优惠券 ----------------
+
+import random
+
+
+def _refresh_coupon_status(user_id):
+    """把过期未使用的券标记为已过期。"""
+    now = datetime.now()
+    expired = Coupon.query.filter(
+        Coupon.user_id == user_id,
+        Coupon.status == "未使用",
+        Coupon.expire_at.isnot(None),
+        Coupon.expire_at < now,
+    ).all()
+    for c in expired:
+        c.status = "已过期"
+    if expired:
+        db.session.commit()
+
+
+def _already_lottery_today(user):
+    """判断用户今天是否已经抽过奖（每日仅一次）。"""
+    today = datetime.now().strftime("%Y-%m-%d")
+    return user.last_lottery_date == today
+
+
+@user_bp.route("/coupon/lottery", methods=["POST"])
+def coupon_lottery():
+    """抽奖式发券：随机抽一张券给用户。每日仅一次。返回 JSON（amount/name/threshold）。"""
+    user = _require_login()
+    if user is None:
+        return {"error": "请先登录"}, 401
+    _refresh_coupon_status(user.id)
+
+    # 每日仅一次：今天已抽过则直接返回提示
+    if _already_lottery_today(user):
+        return {"error": "今天已经领过啦，明天再来吧", "already": True}, 200
+
+    # 随机抽一张券（权重：小面额概率高，大面额概率低）
+    # 面额越大越稀有，用小面额多次铺开模拟
+    weighted = []
+    weights = [40, 30, 18, 9, 3]  # 对应 COUPON_POOL 各档概率
+    idx = random.choices(range(len(COUPON_POOL)), weights=weights, k=1)[0]
+    amount, threshold, name = COUPON_POOL[idx]
+
+    coupon = Coupon(
+        user_id=user.id,
+        amount=amount,
+        threshold=threshold,
+        name=name,
+        status="未使用",
+        expire_at=datetime.now() + timedelta(days=7),  # 7天有效
+    )
+    db.session.add(coupon)
+    user.last_lottery_date = datetime.now().strftime("%Y-%m-%d")  # 记录今日已抽，保证每日仅一次
+    db.session.commit()
+    return {
+        "amount": amount,
+        "name": name,
+        "threshold": threshold,
+        "coupon_id": coupon.id,
+    }
+
+
+@user_bp.route("/coupons")
+def coupon_list():
+    """我的优惠券包。"""
+    user = _require_login()
+    if user is None:
+        flash("请先登录", "error")
+        return redirect(url_for("auth.login"))
+    _refresh_coupon_status(user.id)
+    coupons = Coupon.query.filter_by(user_id=user.id).order_by(Coupon.obtained_at.desc()).all()
+    return render_template("user/coupons.html", coupons=coupons)
+
+
 # ---------------- 购物车 ----------------
 
 @user_bp.route("/cart")
@@ -207,12 +337,22 @@ def cart_add(fruit_id):
     if quantity < 1:
         quantity = 1
 
-    item = Cart.query.filter_by(user_id=current_user_id(), fruit_id=fruit_id).first()
-    if item:
-        item.quantity += quantity
+    # 校验库存：加购数量（含购物车已有）不能超过库存
+    fruit = Fruit.query.get(fruit_id)
+    if not fruit or not fruit.is_on_sale:
+        flash("该商品已下架", "error")
+        return redirect(request.referrer or url_for("user.cart"))
+    existing = Cart.query.filter_by(user_id=current_user_id(), fruit_id=fruit_id).first()
+    already = existing.quantity if existing else 0
+    if already + quantity > (fruit.stock or 0):
+        flash(f"「{fruit.name}」库存不足（仅剩 {fruit.stock or 0} 件，购物车已有 {already} 件）", "error")
+        return redirect(request.referrer or url_for("user.cart"))
+
+    if existing:
+        existing.quantity += quantity
     else:
-        item = Cart(user_id=current_user_id(), fruit_id=fruit_id, quantity=quantity)
-        db.session.add(item)
+        existing = Cart(user_id=current_user_id(), fruit_id=fruit_id, quantity=quantity)
+        db.session.add(existing)
     db.session.commit()
     flash(f"已加入购物车 ×{quantity}", "success")
     return redirect(request.referrer or url_for("user.cart"))
@@ -264,7 +404,17 @@ def checkout():
             return redirect(url_for("user.cart"))
         total = sum(item.fruit.price * item.quantity for item in items)
         addresses = Address.query.filter_by(user_id=current_user_id()).order_by(Address.is_default.desc(), Address.id.desc()).all()
-        return render_template("user/checkout.html", items=items, total=total, addresses=addresses)
+        # 可用优惠券（未使用 + 未过期 + 满足满减门槛）
+        _refresh_coupon_status(current_user_id())
+        usable = Coupon.query.filter(
+            Coupon.user_id == current_user_id(),
+            Coupon.status == "未使用",
+            Coupon.threshold <= total,
+        ).order_by(Coupon.amount.desc()).all()
+        return render_template(
+            "user/checkout.html", items=items, total=total,
+            addresses=addresses, coupons=usable,
+        )
 
     # POST：下单
     items = Cart.query.filter_by(user_id=current_user_id()).all()
@@ -286,32 +436,79 @@ def checkout():
         return redirect(url_for("user.profile"))
     address_snapshot = f"{address.receiver} {address.phone} {address.detail}"
 
+    # 库存校验：任一商品库存不足则整单不下，避免部分下单
     for item in items:
         fruit = Fruit.query.get(item.fruit_id)
+        if not fruit or not fruit.is_on_sale:
+            flash(f"「{fruit.name if fruit else '商品'}」已下架，请从购物车移除", "error")
+            return redirect(url_for("user.cart"))
+        if item.quantity > (fruit.stock or 0):
+            flash(f"「{fruit.name}」库存不足（仅剩 {fruit.stock or 0} 件），请调整数量", "error")
+            return redirect(url_for("user.cart"))
+
+    # 计算总额，解析优惠券
+    total = sum(i.fruit.price * i.quantity for i in items)
+    coupon = None
+    coupon_id = request.form.get("coupon_id")
+    if coupon_id:
+        coupon = Coupon.query.filter_by(
+            id=int(coupon_id), user_id=current_user_id(), status="未使用"
+        ).first()
+    discount = 0.0
+    if coupon:
+        if coupon.threshold > total:
+            flash(f"「{coupon.name}」需满 {coupon.threshold} 元才可用", "error")
+            return redirect(url_for("user.checkout"))
+        discount = min(coupon.amount, total)  # 抵扣不超过总额
+
+    for idx, item in enumerate(items):
+        fruit = Fruit.query.get(item.fruit_id)
+        # 优惠券只抵扣第一笔订单（简化：整单一张券，均摊到首个商品）
+        order_discount = discount if idx == 0 else 0.0
         order = Order(
             user_id=current_user_id(),
             fruit_id=item.fruit_id,
             quantity=item.quantity,
             total_price=fruit.price * item.quantity,
+            discount=order_discount,
+            coupon_id=coupon.id if (coupon and idx == 0) else None,
             status="待支付",
             pay_deadline=datetime.now() + timedelta(minutes=PAY_TIMEOUT_MINUTES),
             address=address_snapshot,
         )
         db.session.add(order)
+        # 下单即扣减库存（预占，支付超时取消时回补）
+        fruit.stock = (fruit.stock or 0) - item.quantity
         db.session.delete(item)
+
+    # 券标记为已使用
+    if coupon:
+        coupon.status = "已使用"
+        coupon.used_at = datetime.now()
+
     db.session.commit()
-    flash("下单成功！请尽快支付", "success")
+    if discount > 0:
+        flash(f"下单成功！已使用优惠券抵扣 ¥{discount:.0f}，请尽快支付", "success")
+    else:
+        flash("下单成功！请尽快支付", "success")
     return redirect(url_for("user.orders"))
 
 
 # ---------------- 订单 ----------------
 
 def _cancel_if_expired(order):
-    """待支付订单超时自动取消。返回订单当前状态。"""
+    """待支付订单超时自动取消（并回补预扣库存）。返回订单当前状态。"""
     if order.status == "待支付" and order.pay_deadline and datetime.now() > order.pay_deadline:
         order.status = "已取消"
+        _refund_stock(order)
         db.session.commit()
     return order.status
+
+
+def _refund_stock(order):
+    """取消订单时回补下单时预扣的库存。"""
+    if order.fruit:
+        order.fruit.stock = (order.fruit.stock or 0) + order.quantity
 
 
 @user_bp.route("/orders")
@@ -334,7 +531,7 @@ def orders():
 
     # 各状态数量（用于标签页显示）
     status_counts = {}
-    for s in ["全部", "待支付", "待发货", "待收货", "已完成", "已取消"]:
+    for s in ["全部", "待支付", "待发货", "运输中", "已完成", "已取消"]:
         if s == "全部":
             status_counts[s] = Order.query.filter_by(user_id=current_user_id()).count()
         else:
@@ -357,10 +554,34 @@ def order_cancel(order_id):
     order = Order.query.filter_by(id=order_id, user_id=current_user_id()).first()
     if order and order.status == "待支付":
         order.status = "已取消"
+        _refund_stock(order)  # 回补预扣库存
         db.session.commit()
         flash("订单已取消", "success")
     else:
         flash("该订单无法取消", "error")
+    return redirect(url_for("user.orders"))
+
+
+@user_bp.route("/order/<int:order_id>/confirm", methods=["POST"])
+def order_confirm(order_id):
+    """确认收货（运输中 → 已完成），完成后商品销量累加、可评价。"""
+    if current_user_id() is None:
+        return redirect(url_for("auth.login"))
+    order = Order.query.filter_by(id=order_id, user_id=current_user_id()).first()
+    if not order:
+        flash("订单不存在", "error")
+        return redirect(url_for("user.orders"))
+    if order.status != "运输中":
+        flash("只有运输中的订单才能确认收货", "error")
+        return redirect(url_for("user.orders"))
+
+    order.status = "已完成"
+    order.completed_at = datetime.now()
+    # 累计商品销量（支撑热销榜/推荐）
+    if order.fruit:
+        order.fruit.sales = (order.fruit.sales or 0) + order.quantity
+    db.session.commit()
+    flash("已确认收货，感谢购买！可以去评价啦～", "success")
     return redirect(url_for("user.orders"))
 
 
@@ -378,6 +599,7 @@ def order_pay(order_id):
         return redirect(url_for("user.orders"))
     if order.pay_deadline and datetime.now() > order.pay_deadline:
         order.status = "已取消"
+        _refund_stock(order)  # 回补预扣库存
         db.session.commit()
         flash("订单已超时，请重新下单", "error")
         return redirect(url_for("user.orders"))
@@ -395,6 +617,7 @@ def order_pay_confirm(order_id):
         return redirect(url_for("user.orders"))
     if order.pay_deadline and datetime.now() > order.pay_deadline:
         order.status = "已取消"
+        _refund_stock(order)  # 回补预扣库存
         db.session.commit()
         flash("订单已超时，请重新下单", "error")
         return redirect(url_for("user.orders"))
@@ -430,6 +653,7 @@ def order_batch_pay():
             continue
         if order.pay_deadline and datetime.now() > order.pay_deadline:
             order.status = "已取消"
+            _refund_stock(order)  # 回补预扣库存
             expired += 1
         else:
             order.status = "待发货"
@@ -679,10 +903,12 @@ def order_detail(order_id):
         "is_seckill": order.is_seckill,
         "created_at": order.created_at.strftime("%Y-%m-%d %H:%M:%S"),
         "paid_at": order.paid_at.strftime("%Y-%m-%d %H:%M:%S") if order.paid_at else None,
+        "completed_at": order.completed_at.strftime("%Y-%m-%d %H:%M:%S") if order.completed_at else None,
         "pay_deadline": order.pay_deadline.strftime("%Y-%m-%d %H:%M:%S") if order.pay_deadline else None,
         "address": order.address,
         "payment_method": order.payment_method,
         "total_price": order.total_price,
+        "discount": order.discount or 0,
         "quantity": order.quantity,
         "fruit_name": fruit.name if fruit else "",
         "fruit_emoji": fruit.emoji if fruit else "🍓",

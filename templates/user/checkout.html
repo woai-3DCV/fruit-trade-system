@@ -66,19 +66,66 @@
     </div>
   </div>
 
+  <!-- 优惠券选择 -->
+  <div class="card">
+    <div class="card-title">🎫 优惠券</div>
+    {% if coupons %}
+      <div id="coupon-list">
+        <label class="addr-option" style="cursor:pointer;" data-coupon="0" data-amount="0">
+          <input type="radio" name="coupon_id" value="0" checked style="display:none;">
+          <div style="font-size:14px;color:#666;">不使用优惠券</div>
+        </label>
+        {% for c in coupons %}
+        <label class="addr-option" style="cursor:pointer;" data-coupon="{{ c.id }}" data-amount="{{ c.amount }}">
+          <input type="radio" name="coupon_id" value="{{ c.id }}" style="display:none;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="color:#ff4d4f;font-size:18px;font-weight:bold;">¥{{ '%.0f'|format(c.amount) }}</span>
+            <span style="font-size:14px;color:#333;">{{ c.name }}</span>
+            <span style="font-size:12px;color:#999;">{{ '无门槛' if c.threshold == 0 else '满' ~ ('%.0f'|format(c.threshold)) ~ '可用' }}</span>
+          </div>
+        </label>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div style="color:#999;font-size:14px;">暂无可用优惠券，<a href="/user/" style="color:var(--primary);">去首页抽奖</a></div>
+    {% endif %}
+  </div>
+
   <!-- 提交 -->
   <form method="post" action="/user/checkout">
     <input type="hidden" name="address_id" id="selected-address" value="{{ (addresses|first).id if addresses else '' }}">
-    <button type="submit" class="btn btn-danger" style="width:100%;padding:14px;font-size:16px;border-radius:10px;margin-top:16px;">提交订单 · 去支付</button>
+    <input type="hidden" name="coupon_id" id="selected-coupon" value="0">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;">
+      <div>
+        <span style="font-size:13px;color:#666;">应付合计：</span>
+        <span style="color:#ff4d4f;font-size:24px;font-weight:bold;" id="pay-total">¥{{ '%.2f'|format(total) }}</span>
+      </div>
+      <button type="submit" class="btn btn-danger" style="padding:14px 32px;font-size:16px;border-radius:10px;">提交订单 · 去支付</button>
+    </div>
   </form>
 
 {% endblock %}
 
 {% block scripts %}
 <script>
+  var total = {{ total }};
+  var payTotal = document.getElementById('pay-total');
+  var couponInput = document.getElementById('selected-coupon');
+
   // 地址选择联动
   document.querySelectorAll('.addr-option').forEach(function(el){
     el.addEventListener('click', function(){
+      // 如果是优惠券选项（有 data-coupon），处理券
+      if (el.hasAttribute('data-coupon')) {
+        document.querySelectorAll('#coupon-list .addr-option').forEach(function(x){ x.classList.remove('active'); });
+        el.classList.add('active');
+        var cid = el.getAttribute('data-coupon');
+        var amount = parseFloat(el.getAttribute('data-amount'));
+        couponInput.value = cid;
+        payTotal.textContent = '¥' + (Math.max(0, total - amount)).toFixed(2);
+        return;
+      }
+      // 否则是地址选项
       document.querySelectorAll('.addr-option').forEach(function(x){ x.classList.remove('active'); });
       el.classList.add('active');
       var radio = el.querySelector('input[name="address_id"]');

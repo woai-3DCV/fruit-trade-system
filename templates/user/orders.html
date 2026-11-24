@@ -30,7 +30,7 @@
 
   <!-- 订单状态分类标签 -->
   <div class="order-tabs">
-    {% set tabs = ['全部','待支付','待发货','待收货','已完成','已取消'] %}
+    {% set tabs = ['全部','待支付','待发货','运输中','已完成','已取消'] %}
     {% for t in tabs %}
     <a href="/user/orders?status={{ t }}" class="order-tab {{ 'active' if current_status==t }}">
       {{ t }}
@@ -82,13 +82,26 @@
         {% endif %}
       </div>
       <div style="text-align:right;flex-shrink:0;">
-        <div style="color:#ff4d4f;font-size:18px;font-weight:bold;">¥{{ '%.2f'|format(o.total_price) }}</div>
+        {% if o.discount and o.discount > 0 %}
+        <div style="font-size:12px;color:#999;margin-bottom:2px;">优惠券 -¥{{ '%.2f'|format(o.discount) }}</div>
+        {% endif %}
+        <div style="color:#ff4d4f;font-size:18px;font-weight:bold;">¥{{ '%.2f'|format(o.total_price - (o.discount or 0)) }}</div>
         {% if o.status == '待支付' %}
         <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end;">
           <form method="post" action="/user/order/{{ o.id }}/cancel" style="margin:0;" onsubmit="return confirm('确定取消该订单吗？');">
             <button type="submit" class="btn btn-outline" style="padding:5px 12px;font-size:12px;">取消订单</button>
           </form>
           <a href="/user/order/{{ o.id }}/pay" class="btn btn-primary" style="padding:5px 12px;font-size:12px;">立即支付</a>
+        </div>
+        {% elif o.status == '运输中' %}
+        <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end;">
+          <form method="post" action="/user/order/{{ o.id }}/confirm" style="margin:0;" onsubmit="return confirm('确认已收到商品吗？');">
+            <button type="submit" class="btn btn-primary" style="padding:5px 12px;font-size:12px;">✅ 确认收货</button>
+          </form>
+        </div>
+        {% elif o.status == '已完成' %}
+        <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end;">
+          <a href="/user/fruit/{{ o.fruit_id }}" class="btn btn-outline" style="padding:5px 12px;font-size:12px;">去评价</a>
         </div>
         {% endif %}
       </div>
@@ -205,6 +218,7 @@
             ];
             if (d.payment_method) rows.push(['支付方式', d.payment_method]);
             if (d.paid_at) rows.push(['支付时间', d.paid_at]);
+            if (d.completed_at) rows.push(['确认收货', d.completed_at]);
             if (d.address) rows.push(['收货地址', d.address]);
             if (d.is_seckill) rows.push(['订单类型', '⚡ 秒杀单']);
             if (d.logistics) {
@@ -212,7 +226,8 @@
               if (d.logistics.courier) rows.push(['配送员', d.logistics.courier]);
               if (d.logistics.current_location) rows.push(['当前位置', d.logistics.current_location]);
             }
-            rows.push(['实付金额', '¥' + parseFloat(d.total_price).toFixed(2)]);
+            if (d.discount && d.discount > 0) rows.push(['优惠券', '-¥' + parseFloat(d.discount).toFixed(2)]);
+            rows.push(['实付金额', '¥' + parseFloat(d.total_price - (d.discount || 0)).toFixed(2)]);
             var html = '<table class="table"><tbody>';
             rows.forEach(function(row){
               html += '<tr><th style="width:100px;">' + row[0] + '</th><td>' + row[1] + '</td></tr>';

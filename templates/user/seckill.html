@@ -32,6 +32,7 @@
   {% for item in seckill_list %}
     {% set s = item.activity %}
     {% set remaining = item.remaining %}
+    {% set status = item.status %}
     {% set sold = s.total_stock - remaining %}
     {% set pct = ((sold / s.total_stock * 100) if s.total_stock > 0 else 100) | round | int %}
   <div style="background:#fff;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,0.08);margin-bottom:16px;overflow:hidden;border:1px solid #f0f0f0;">
@@ -60,25 +61,29 @@
           </div>
           <!-- 倒计时 -->
           <div style="margin-top:8px;display:flex;align-items:center;gap:6px;font-size:13px;color:#666;">
-            <span>{% if s.status == '未开始' %}距开始{% else %}距结束{% endif %}</span>
+            <span>{% if status == '未开始' %}距开始{% elif status == '进行中' %}距结束{% else %}已结束{% endif %}</span>
+            {% if status != '已结束' %}
             <span class="seckill-timer"
-                  data-end="{{ (s.start_time if s.status=='未开始' else s.end_time).strftime('%Y-%m-%dT%H:%M:%S') }}"
+                  data-end="{{ (s.start_time if status=='未开始' else s.end_time).strftime('%Y-%m-%dT%H:%M:%S') }}"
                   style="display:inline-flex;gap:4px;">
               <b style="background:#333;color:#fff;padding:3px 6px;border-radius:4px;font-family:monospace;font-size:13px;">00</b><span style="color:#333;">:</span>
               <b style="background:#333;color:#fff;padding:3px 6px;border-radius:4px;font-family:monospace;font-size:13px;">00</b><span style="color:#333;">:</span>
               <b style="background:#333;color:#fff;padding:3px 6px;border-radius:4px;font-family:monospace;font-size:13px;">00</b>
             </span>
+            {% endif %}
           </div>
         </div>
       </div>
       <!-- 右侧按钮 -->
       <div style="flex-shrink:0;">
-        {% if s.status == '进行中' and remaining > 0 %}
+        {% if status == '进行中' and remaining > 0 %}
         <form method="post" action="/user/seckill/{{ s.id }}/buy" style="margin:0;">
           <button type="submit" style="background:linear-gradient(90deg,#ff4d4f,#ff7875);color:#fff;font-weight:bold;border:none;border-radius:22px;padding:12px 26px;cursor:pointer;font-size:15px;box-shadow:0 4px 10px rgba(255,77,79,0.35);">立即抢购</button>
         </form>
         {% elif remaining <= 0 %}
         <button style="background:#e8e8e8;color:#999;border:none;border-radius:22px;padding:12px 26px;font-size:15px;cursor:not-allowed;">已售罄</button>
+        {% elif status == '已结束' %}
+        <button style="background:#e8e8e8;color:#999;border:none;border-radius:22px;padding:12px 26px;font-size:15px;cursor:not-allowed;">已结束</button>
         {% else %}
         <button style="background:#e8e8e8;color:#999;border:none;border-radius:22px;padding:12px 26px;font-size:15px;cursor:not-allowed;">未开始</button>
         {% endif %}

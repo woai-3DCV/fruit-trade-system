@@ -37,7 +37,11 @@
       <div class="profile-name">{{ user.nickname or user.username }}</div>
       <div class="profile-sub">@{{ user.username }} · {{ user.gender or '保密' }}</div>
     </div>
-    <a href="/user/chat" class="btn btn-outline" style="padding:6px 14px;font-size:13px;text-decoration:none;flex-shrink:0;">💬 我的咨询</a>
+    <div style="display:flex;gap:8px;flex-shrink:0;">
+      <a href="/user/coupons" class="btn btn-outline" style="padding:6px 14px;font-size:13px;text-decoration:none;">🎫 我的优惠券</a>
+      <a href="/user/favorites" class="btn btn-outline" style="padding:6px 14px;font-size:13px;text-decoration:none;">❤️ 我的收藏</a>
+      <a href="/user/chat" class="btn btn-outline" style="padding:6px 14px;font-size:13px;text-decoration:none;">💬 我的咨询</a>
+    </div>
   </div>
 
   <!-- ===== 标签页切换 ===== -->

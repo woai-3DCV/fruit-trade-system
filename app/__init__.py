@@ -33,6 +33,10 @@ def create_app():
     from app.logistics.routes import logistics_bp
     app.register_blueprint(logistics_bp)
 
+    # 启动秒杀异步下单消费线程（秒杀抢购成功后由它异步建单）
+    from app.user.seckill_service import seckill_service
+    seckill_service.start_consumer()
+
     @app.route("/")
     def index():
         return render_template("login.html")

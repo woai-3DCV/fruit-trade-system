@@ -23,23 +23,38 @@ class RecommendService:
         """
         from app.models import Fruit, BrowseHistory
 
-        # 1. 用户浏览过的细分类（按浏览次数加权排序，最近浏览的权重更高）
+        # 1. 用户浏览/收藏过的细分类（按时间排序，最近行为权重更高）
         browsed_subcats = []
         if user_id:
-            rows = (
+            from app.models import Favorite
+            # 浏览历史（最近 50 条）
+            browse_rows = (
                 BrowseHistory.query
                 .filter_by(user_id=user_id)
                 .order_by(BrowseHistory.viewed_at.desc())
-                .limit(50)  # 只看最近 50 条，避免历史过多拖慢查询
+                .limit(50)
                 .all()
             )
-            # 保持浏览先后顺序去重（最近浏览的细分类排前面）
-            seen = set()
+            # 收藏（最近 20 条，作为更强的兴趣信号放前面）
+            fav_rows = (
+                Favorite.query
+                .filter_by(user_id=user_id)
+                .order_by(Favorite.created_at.desc())
+                .limit(20)
+                .all()
+            )
+            # 合并：收藏优先，其次浏览
             ordered_ids = []
-            for h in rows:
+            seen = set()
+            for fr in fav_rows:
+                if fr.fruit_id not in seen:
+                    seen.add(fr.fruit_id)
+                    ordered_ids.append(fr.fruit_id)
+            for h in browse_rows:
                 if h.fruit_id not in seen:
                     seen.add(h.fruit_id)
                     ordered_ids.append(h.fruit_id)
+
             if ordered_ids:
                 rows_fruit = (
                     Fruit.query.filter(Fruit.id.in_(ordered_ids))

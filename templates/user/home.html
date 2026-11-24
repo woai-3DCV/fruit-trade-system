@@ -13,6 +13,26 @@
 
 {% block content %}
 
+  <!-- ===== 抽奖式优惠券弹窗（每日仅一次） ===== -->
+  {% if can_lottery %}
+  <div class="modal-mask" id="coupon-mask" style="display:flex;">
+    <div class="coupon-popup">
+      <div class="coupon-popup-header">
+        <span>🎁 新人好礼</span>
+      </div>
+      <div class="coupon-popup-body">
+        <div style="font-size:60px;margin-bottom:10px;">🎉</div>
+        <div style="font-size:16px;color:#666;margin-bottom:4px;">恭喜你！抽中一张优惠券</div>
+        <div style="font-size:15px;font-weight:bold;color:#333;" id="coupon-result-text">正在抽奖...</div>
+        <div style="margin-top:16px;">
+          <button type="button" class="btn btn-primary" id="coupon-draw-btn" style="padding:12px 40px;font-size:16px;border-radius:24px;">🎰 立即抽奖</button>
+        </div>
+        <div style="margin-top:10px;font-size:12px;color:#bbb;">满减券直接抵扣 · 抽到就是赚到</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- 搜索框 -->
   <div style="margin-bottom:16px;">
     <form method="get" action="/user/" style="display:flex;gap:10px;">
@@ -105,4 +125,57 @@
     </div>
   </div>
 
+{% endblock %}
+
+{% block scripts %}
+{% if can_lottery %}
+<script>
+(function(){
+  var mask = document.getElementById('coupon-mask');
+  var drawBtn = document.getElementById('coupon-draw-btn');
+  var resultText = document.getElementById('coupon-result-text');
+  if (!mask || !drawBtn) return;
+
+  // 抽奖
+  drawBtn.addEventListener('click', function(){
+    drawBtn.disabled = true;
+    drawBtn.textContent = '抽奖中...';
+    fetch('/user/coupon/lottery', { method: 'POST' })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (d.error) {
+          // 已抽过/未登录等
+          if (d.already) {
+            resultText.textContent = '今天已经领过啦，明天再来吧';
+            drawBtn.textContent = '明天再来';
+            drawBtn.disabled = true;
+            setTimeout(function(){ mask.style.display = 'none'; }, 1500);
+          } else {
+            resultText.textContent = '请先登录';
+            drawBtn.disabled = false;
+            drawBtn.textContent = '🎰 立即抽奖';
+          }
+          return;
+        }
+        resultText.innerHTML = '🎉 获得 <span style="color:#ff4d4f;font-size:22px;">¥' + d.amount + '</span> ' + d.name +
+          (d.threshold > 0 ? '（满' + d.threshold + '可用）' : '（无门槛）');
+        drawBtn.textContent = '✅ 已领取，去使用';
+        setTimeout(function(){ mask.style.display = 'none'; }, 1500);
+      })
+      .catch(function(){
+        resultText.textContent = '抽奖失败，请稍后再试';
+        drawBtn.disabled = false;
+        drawBtn.textContent = '🎰 立即抽奖';
+      });
+  });
+
+  // 点遮罩空白关闭（仅领取后）
+  mask.addEventListener('click', function(e){
+    if (e.target === mask && drawBtn.textContent.indexOf('领取') >= 0) {
+      mask.style.display = 'none';
+    }
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}

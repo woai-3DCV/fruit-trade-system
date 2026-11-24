@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}我的优惠券 - 水果交易智能管理系统{% endblock %}
+
+{% block nav %}
+  <a href="/user/">首页</a>
+  <a href="/user/seckill">限时秒杀</a>
+  <a href="/user/cart">购物车</a>
+  <a href="/user/orders">我的订单</a>
+  <a href="/user/profile">个人中心</a>
+{% endblock %}
+
+
+{% block content %}
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div style="display:flex;align-items:center;gap:8px;background:{{ '#fff1f0' if category=='error' else '#f0f9eb' }};border:1px solid {{ '#ffccc7' if category=='error' else '#b7eb8f' }};color:{{ '#cf1322' if category=='error' else '#389e0d' }};padding:10px 14px;border-radius:6px;margin-bottom:14px;font-size:14px;">
+          <span>{{ '⚠️' if category=='error' else '✅' }}</span><span>{{ message }}</span>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+    <span style="font-size:20px;font-weight:bold;">🎫 我的优惠券</span>
+    {% if coupons %}<span style="font-size:13px;color:#999;">共 {{ coupons|length }} 张</span>{% endif %}
+  </div>
+
+  {% if coupons %}
+    {% for c in coupons %}
+    {% set st_style = {'未使用':'#ff4d4f','已使用':'#bbb','已过期':'#bbb'} %}
+    <div style="display:flex;align-items:center;gap:16px;background:#fff;border:1px solid #f0f0f0;border-radius:10px;padding:16px 20px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.04);opacity:{{ 1 if c.status=='未使用' else 0.55 }};">
+      <!-- 左侧面额 -->
+      <div style="width:80px;height:80px;background:linear-gradient(135deg,#fff5f5,#ffe8e8);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;">
+        <span style="color:#ff4d4f;font-size:26px;font-weight:bold;line-height:1;">¥{{ '%.0f'|format(c.amount) }}</span>
+        <span style="font-size:11px;color:#ff7875;margin-top:2px;">{{ '无门槛' if c.threshold == 0 else '满' ~ ('%.0f'|format(c.threshold)) ~ '可用' }}</span>
+      </div>
+      <!-- 中间信息 -->
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:bold;font-size:15px;color:#333;">{{ c.name }}</div>
+        <div style="font-size:12px;color:#999;margin-top:4px;">
+          领取于 {{ c.obtained_at.strftime('%Y-%m-%d %H:%M') if c.obtained_at else '' }}
+          {% if c.expire_at %} · 有效期至 {{ c.expire_at.strftime('%m-%d') }}{% endif %}
+        </div>
+        {% if c.used_at %}
+        <div style="font-size:12px;color:#999;margin-top:2px;">使用于 {{ c.used_at.strftime('%Y-%m-%d %H:%M') }}</div>
+        {% endif %}
+      </div>
+      <!-- 右侧状态 -->
+      <span style="font-size:13px;font-weight:bold;color:{{ st_style.get(c.status, '#999') }};flex-shrink:0;">{{ c.status }}</span>
+    </div>
+    {% endfor %}
+  {% else %}
+  <div style="text-align:center;padding:60px 20px;color:#999;">
+    <div style="font-size:60px;margin-bottom:16px;">🎫</div>
+    <div style="font-size:16px;margin-bottom:20px;">还没有优惠券，去首页抽奖领取吧～</div>
+    <a href="/user/" class="btn btn-primary">去抽奖</a>
+  </div>
+  {% endif %}
+
+{% endblock %}
