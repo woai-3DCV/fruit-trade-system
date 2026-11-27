@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>{% block title %}水果交易智能管理系统{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=admin9">
+</head>
+<body>
+
+  <!-- ===== 顶部导航栏（全组统一，不要改） ===== -->
+  <nav class="navbar">
+    <div class="logo"><span class="emoji">🍉</span>水果交易智能管理系统</div>
+    <div class="spacer"></div>
+    <div class="nav-links">
+      {% block nav %}{% endblock %}
+    </div>
+    <div class="user-info">
+      {% block userinfo %}
+        {% if session.get('username') %}你好，{{ session.get('nickname') or session['username'] }}{% else %}你好，游客{% endif %}
+        <a href="/logout" class="logout-link" title="退出登录">退出</a>
+      {% endblock %}
+    </div>
+  </nav>
+
+  <!-- ===== 页面主体内容（每个端自己填这一块） ===== -->
+  <div class="container">
+    {% block content %}{% endblock %}
+  </div>
+
+  <!-- ===== 全局 AI 助手悬浮球 + 弹窗（登录后显示） ===== -->
+  {% if session.get('user_id') %}
+  <button type="button" class="ai-fab" id="ai-fab" title="AI 智能助手">🤖</button>
+  <div class="ai-panel-mask" id="ai-mask" style="display:none;">
+    <div class="ai-panel">
+      <div class="ai-panel-header">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:20px;">🤖</span>
+          <div>
+            <div style="font-weight:bold;font-size:15px;">AI 智能助手</div>
+            <div style="font-size:11px;color:#999;">小果在线，随时解答</div>
+          </div>
+        </div>
+        <span class="modal-close" id="ai-close">✕</span>
+      </div>
+      <div id="ai-msg-area" class="ai-msg-area">
+        <div class="ai-bubble ai-bubble-ai">👋 你好呀！我是小果，你的智能购物助手～<br>可以问我秒杀、优惠、退款、配送等问题哦！</div>
+      </div>
+      <div id="ai-quick-bar" class="ai-quick-bar"></div>
+      <div class="ai-input-row">
+        <input type="text" id="ai-input" placeholder="输入你的问题..." autocomplete="off">
+        <button type="button" id="ai-send" class="btn btn-primary">发送</button>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% block content_extra %}{% endblock %}
+
+  {% block scripts %}{% endblock %}
+
+  {% if session.get('user_id') %}
+  <script>
+  (function(){
+    var fab = document.getElementById('ai-fab');
+    var mask = document.getElementById('ai-mask');
+    var closeBtn = document.getElementById('ai-close');
+    var msgArea = document.getElementById('ai-msg-area');
+    var input = document.getElementById('ai-input');
+    var sendBtn = document.getElementById('ai-send');
+    var quickBar = document.getElementById('ai-quick-bar');
+    if (!fab || !mask) return;
+
+    // 快捷问题
+    var quickQuestions = ["怎么参加秒杀？","有什么优惠吗？","怎么退款？","怎么改收货地址？","支持哪些支付方式？"];
+    quickQuestions.forEach(function(q){
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'ai-quick-btn';
+      b.textContent = q;
+      b.addEventListener('click', function(){ ask(q); });
+      quickBar.appendChild(b);
+    });
+
+    fab.addEventListener('click', function(){ mask.style.display = 'flex'; input.focus(); });
+    closeBtn.addEventListener('click', function(){ mask.style.display = 'none'; });
+    mask.addEventListener('click', function(e){ if (e.target === mask) mask.style.display = 'none'; });
+
+    // 维护对话历史（多轮）
+    var history = [];
+
+    function addBubble(text, isUser){
+      var div = document.createElement('div');
+      div.className = 'ai-bubble ' + (isUser ? 'ai-bubble-user' : 'ai-bubble-ai');
+      div.textContent = text;
+      msgArea.appendChild(div);
+      msgArea.scrollTop = msgArea.scrollHeight;
+    }
+
+    function ask(text){
+      text = (text || '').trim();
+      if (!text) return;
+      addBubble(text, true);
+      history.push({role: 'user', content: text});
+
+      var body = 'question=' + encodeURIComponent(text);
+      if (history.length > 1){
+        body += '&history=' + encodeURIComponent(JSON.stringify(history.slice(0, -1)));
+      }
+
+      fetch('/user/ai/ask', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: body
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        var answer = data.answer || '抱歉，我没听懂，换个问法试试～';
+        addBubble(answer, false);
+        history.push({role: 'assistant', content: answer});
+        // 限制历史长度，避免过长
+        if (history.length > 12) history = history.slice(-12);
+      })
+      .catch(function(){
+        addBubble('网络出错了，请稍后再试～', false);
+      });
+    }
+
+    sendBtn.addEventListener('click', function(){
+      var v = input.value; input.value = ''; ask(v);
+    });
+    input.addEventListener('keydown', function(e){
+      if (e.key === 'Enter'){ var v = input.value; input.value = ''; ask(v); }
+    });
+  })();
+  </script>
+  {% endif %}
+</body>
+</html>

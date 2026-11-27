@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}{{ fruit.name }} - 商品详情{% endblock %}
+
+{% block nav %}
+  <a href="/user/">首页</a>
+  <a href="/user/seckill">限时秒杀</a>
+  <a href="/user/cart">购物车</a>
+  <a href="/user/orders">我的订单</a>
+  <a href="/user/profile">个人中心</a>
+{% endblock %}
+
+
+{% block content %}
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div style="display:flex;align-items:center;gap:8px;background:{{ '#fff1f0' if category=='error' else '#f0f9eb' }};border:1px solid {{ '#ffccc7' if category=='error' else '#b7eb8f' }};color:{{ '#cf1322' if category=='error' else '#389e0d' }};padding:10px 14px;border-radius:6px;margin-bottom:14px;font-size:14px;">
+          <span>{{ '⚠️' if category=='error' else '✅' }}</span><span>{{ message }}</span>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <div class="card">
+    <div class="card-title">{{ fruit.emoji or '🍓' }} {{ fruit.name }}</div>
+    <table class="table">
+      <tbody>
+        <tr><th style="width:120px;">分类</th><td>{{ fruit.category }} · {{ fruit.sub_category }}</td></tr>
+        <tr><th>产地</th><td>{{ fruit.origin }}</td></tr>
+        <tr><th>价格</th><td style="color:var(--primary);font-weight:bold;">¥{{ fruit.price }}/斤</td></tr>
+        <tr><th>销量</th><td>已售 {{ fruit.sales }} 件</td></tr>
+        <tr><th>状态</th><td>{{ '在售' if fruit.is_on_sale else '已下架' }}</td></tr>
+      </tbody>
+    </table>
+    <div style="margin-top:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+      <form method="post" action="/user/cart/add/{{ fruit.id }}" style="display:flex;align-items:center;gap:12px;">
+        <div class="qty-stepper">
+          <button type="button" class="qty-btn" onclick="changeQty(-1)">−</button>
+          <input type="number" id="qty" name="quantity" value="1" min="1" max="99" class="qty-input">
+          <button type="button" class="qty-btn" onclick="changeQty(1)">＋</button>
+        </div>
+        <span style="color:var(--text-light);">斤</span>
+        <button type="submit" class="btn btn-primary">加入购物车</button>
+      </form>
+      <a href="/user/chat/{{ merchant.id if merchant else 2 }}/{{ fruit.id }}" class="btn btn-outline" style="text-decoration:none;">💬 咨询商家</a>
+    </div>
+  </div>
+
+  <!-- ===== 商品评价 ===== -->
+  <div class="card" style="margin-top:16px;">
+    <div class="card-title">⭐ 商品评价 <span style="font-size:13px;color:#faad14;">{{ avg_rating }}/5</span></div>
+
+    <!-- 评价表单 -->
+    <form method="post" action="/user/fruit/{{ fruit.id }}/review" style="margin-bottom:16px;padding:14px;background:#fafafa;border-radius:8px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <span style="font-size:14px;">评分：</span>
+        <div id="star-picker" style="display:flex;gap:4px;font-size:24px;cursor:pointer;">
+          <span class="star" data-v="1">☆</span>
+          <span class="star" data-v="2">☆</span>
+          <span class="star" data-v="3">☆</span>
+          <span class="star" data-v="4">☆</span>
+          <span class="star" data-v="5">☆</span>
+        </div>
+        <input type="hidden" name="rating" id="rating-val" value="5">
+      </div>
+      <textarea name="content" rows="2" placeholder="说说你的购买体验..." style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:14px;resize:vertical;"></textarea>
+      <button type="submit" class="btn btn-primary" style="margin-top:10px;">发布评价</button>
+    </form>
+
+    <!-- 评价列表 -->
+    {% if reviews %}
+      {% for r in reviews %}
+      <div style="padding:12px 0;border-top:1px solid #f0f0f0;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+          <span style="font-size:14px;font-weight:bold;">{{ r.user.nickname or r.user.username }}</span>
+          <span style="color:#faad14;font-size:14px;">{{ '★' * r.rating }}{{ '☆' * (5 - r.rating) }}</span>
+          <span style="font-size:12px;color:#bbb;margin-left:auto;">{{ r.created_at.strftime('%Y-%m-%d') if r.created_at else '' }}</span>
+        </div>
+        {% if r.content %}<div style="font-size:14px;color:#555;">{{ r.content }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    {% else %}
+      <div style="text-align:center;color:#999;padding:20px;">还没有评价，快来第一个评价吧～</div>
+    {% endif %}
+  </div>
+
+  <script>
+    function changeQty(delta) {
+      var el = document.getElementById('qty');
+      var v = parseInt(el.value, 10) || 1;
+      v = Math.max(1, Math.min(99, v + delta));
+      el.value = v;
+    }
+    // 星级选择
+    var stars = document.querySelectorAll('#star-picker .star');
+    var ratingVal = document.getElementById('rating-val');
+    function renderStars(n){
+      stars.forEach(function(s){
+        var v = parseInt(s.dataset.v, 10);
+        s.textContent = v <= n ? '★' : '☆';
+        s.style.color = v <= n ? '#faad14' : '#ccc';
+      });
+    }
+    stars.forEach(function(s){
+      s.addEventListener('click', function(){
+        var v = parseInt(s.dataset.v, 10);
+        ratingVal.value = v;
+        renderStars(v);
+      });
+      s.addEventListener('mouseenter', function(){
+        renderStars(parseInt(s.dataset.v, 10));
+      });
+    });
+    document.getElementById('star-picker').addEventListener('mouseleave', function(){
+      renderStars(parseInt(ratingVal.value, 10));
+    });
+    renderStars(5);
+  </script>
+
+{% endblock %}

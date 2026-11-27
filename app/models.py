@@ -1,0 +1,235 @@
+"""数据库模型 —— 共享文件，修改前先在群里说。
+
+说明：这里是所有端共用的领域模型，按"端"分区。各端负责人如果要新增
+自己端的表，先群里说一声，避免同时改这个文件造成冲突。
+"""
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
+
+db = SQLAlchemy()
+
+# 统一用本地时间（中文环境，前端直接 strftime 展示即北京时间），
+# 避免 created_at(UTC) 与 pay_deadline/paid_at(本地) 时区不一致导致的显示错乱
+def _now():
+    return datetime.now()
+
+
+# ============================================================
+# 共享表（订单/用户跨端使用，组长统一定义）
+# ============================================================
+
+class User(db.Model):
+    """用户：普通用户 / 商家 / 平台管理员 / 物流配送 四种身份统一建模。"""
+    __tablename__ = "users"
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(64), unique=True, nullable=False)
+    password_hash = db.Column(db.String(128), nullable=False)
+    role = db.Column(db.String(20), nullable=False)  # user / merchant / admin / logistics
+    phone = db.Column(db.String(20))
+    nickname = db.Column(db.String(64))              # 昵称
+    avatar = db.Column(db.String(8), default="😊")   # 头像 emoji（默认，未上传图片时用）
+    avatar_url = db.Column(db.Text)                  # 头像图片（base64 data URL，拍照/相册上传）
+    gender = db.Column(db.String(8))                 # 男/女/保密
+    created_at = db.Column(db.DateTime, default=_now)
+
+
+class Order(db.Model):
+    """订单：下单源头在用户端，商家/物流都要读它、更新状态。"""
+    __tablename__ = "orders"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    fruit_id = db.Column(db.Integer, db.ForeignKey("fruits.id"), nullable=False)
+    quantity = db.Column(db.Integer, default=1)
+    total_price = db.Column(db.Float)
+    status = db.Column(db.String(20), default="待支付")  # 待支付/待发货/运输中/已完成/已取消
+    is_seckill = db.Column(db.Boolean, default=False)   # 是否秒杀订单
+    created_at = db.Column(db.DateTime, default=_now)
+    pay_deadline = db.Column(db.DateTime)               # 支付截止时间（超时自动取消）
+    address = db.Column(db.String(255))                 # 收货地址（下单时快照）
+    payment_method = db.Column(db.String(20))           # 支付方式：微信/支付宝/余额
+    paid_at = db.Column(db.DateTime)                    # 支付时间
+
+    fruit = db.relationship("Fruit", backref="orders")
+
+
+# ============================================================
+# 用户端表（组长负责）
+# ============================================================
+
+class Cart(db.Model):
+    """购物车。"""
+    __tablename__ = "cart_items"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    fruit_id = db.Column(db.Integer, db.ForeignKey("fruits.id"), nullable=False)
+    quantity = db.Column(db.Integer, default=1)
+
+    fruit = db.relationship("Fruit", backref="cart_items")
+
+
+class Address(db.Model):
+    """收货地址（用户端，组长负责）。"""
+    __tablename__ = "addresses"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    receiver = db.Column(db.String(64), nullable=False)   # 收货人
+    phone = db.Column(db.String(20), nullable=False)      # 联系电话
+    detail = db.Column(db.String(255), nullable=False)    # 详细地址
+    is_default = db.Column(db.Boolean, default=False)     # 是否默认地址
+
+
+class SeckillActivity(db.Model):
+    """限时秒杀活动（创新点）。"""
+    __tablename__ = "seckill_activities"
+
+    id = db.Column(db.Integer, primary_key=True)
+    fruit_id = db.Column(db.Integer, db.ForeignKey("fruits.id"), nullable=False)
+    seckill_price = db.Column(db.Float, nullable=False)   # 秒杀价
+    stock = db.Column(db.Integer, nullable=False)          # 剩余库存（原子扣减用）
+    total_stock = db.Column(db.Integer, nullable=False)    # 初始总库存（算"已抢"进度）
+    limit_per_user = db.Column(db.Integer, default=1)      # 限购数量
+    start_time = db.Column(db.DateTime, nullable=False)
+    end_time = db.Column(db.DateTime, nullable=False)
+    status = db.Column(db.String(20), default="未开始")    # 未开始/进行中/已结束
+
+    fruit = db.relationship("Fruit", backref="seckills")  # 关联水果，方便取名字/图片
+
+
+class BrowseHistory(db.Model):
+    """浏览历史（用于个性化推荐，创新点）。"""
+    __tablename__ = "browse_history"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    fruit_id = db.Column(db.Integer, db.ForeignKey("fruits.id"), nullable=False)
+    viewed_at = db.Column(db.DateTime, default=_now)
+
+
+class Message(db.Model):
+    """用户↔商家私信（咨询/客服）。"""
+    __tablename__ = "messages"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)   # 发起咨询的用户
+    merchant_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)  # 被咨询的商家
+    fruit_id = db.Column(db.Integer, db.ForeignKey("fruits.id"))                 # 关联商品（可为空）
+    sender_role = db.Column(db.String(20), nullable=False)  # user / merchant（谁发的）
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=_now)
+
+
+class Review(db.Model):
+    """商品评价（用户对已完成订单打分评论）。"""
+    __tablename__ = "reviews"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    fruit_id = db.Column(db.Integer, db.ForeignKey("fruits.id"), nullable=False)
+    order_id = db.Column(db.Integer, db.ForeignKey("orders.id"))    # 关联订单
+    rating = db.Column(db.Integer, default=5)                       # 1~5 星
+    content = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=_now)
+
+    user = db.relationship("User", backref="reviews")
+    fruit = db.relationship("Fruit", backref="reviews")
+
+
+# ============================================================
+# 商家端表（B 负责）
+# ============================================================
+
+class Fruit(db.Model):
+    """水果商品。"""
+    __tablename__ = "fruits"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(64), nullable=False)
+    category = db.Column(db.String(64))          # 大分类（水果/蔬菜/肉禽等）
+    sub_category = db.Column(db.String(64))      # 细分类（苹果/柑橘/莓果等）
+    emoji = db.Column(db.String(8), default="🍓")  # 商品展示图标
+    price = db.Column(db.Float)
+    origin = db.Column(db.String(128))           # 产地
+    sales = db.Column(db.Integer, default=0)     # 销量（支撑热销/进度条）
+    merchant_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    is_on_sale = db.Column(db.Boolean, default=True)  # 上架/下架
+
+
+class FruitBatch(db.Model):
+    """水果批次（批次管理/溯源，创新点）。"""
+    __tablename__ = "fruit_batches"
+
+    id = db.Column(db.Integer, primary_key=True)
+    fruit_id = db.Column(db.Integer, db.ForeignKey("fruits.id"), nullable=False)
+    batch_no = db.Column(db.String(64), nullable=False)   # 批次号
+    origin = db.Column(db.String(128))                     # 产地
+    pick_date = db.Column(db.DateTime)                     # 采摘时间
+    expire_date = db.Column(db.DateTime)                   # 保质期到期
+    stock = db.Column(db.Integer, default=0)               # 该批次库存
+
+
+class AfterSale(db.Model):
+    """售后申请。"""
+    __tablename__ = "after_sales"
+
+    id = db.Column(db.Integer, primary_key=True)
+    order_id = db.Column(db.Integer, db.ForeignKey("orders.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"))      # 申请用户
+    type = db.Column(db.String(20))          # 退款/退货
+    reason = db.Column(db.String(255))
+    status = db.Column(db.String(20), default="待处理")   # 待处理/已同意/已拒绝/已完成
+    created_at = db.Column(db.DateTime, default=_now)
+
+    order = db.relationship("Order", backref="after_sales")
+
+
+# ============================================================
+# 平台管理端表（C 负责）
+# ============================================================
+
+class MerchantQualification(db.Model):
+    """商家资质审核。"""
+    __tablename__ = "merchant_qualifications"
+
+    id = db.Column(db.Integer, primary_key=True)
+    merchant_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    license_no = db.Column(db.String(64))
+    status = db.Column(db.String(20), default="待审核")   # 待审核/通过/驳回
+
+
+class Complaint(db.Model):
+    """平台投诉。"""
+    __tablename__ = "complaints"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    content = db.Column(db.String(255))
+    status = db.Column(db.String(20), default="待处理")
+
+
+# ============================================================
+# 物流端表（D 负责）
+# ============================================================
+
+class Logistics(db.Model):
+    """物流配送。"""
+    __tablename__ = "logistics"
+
+    id = db.Column(db.Integer, primary_key=True)
+    order_id = db.Column(db.Integer, db.ForeignKey("orders.id"), nullable=False)
+    status = db.Column(db.String(20), default="待发货")   # 待发货/运输中/已完成
+    courier = db.Column(db.String(64))                    # 配送员
+    current_location = db.Column(db.String(128))          # 当前位置
+
+
+class TemperatureLog(db.Model):
+    """冷链温控记录（创新点）。"""
+    __tablename__ = "temperature_logs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    logistics_id = db.Column(db.Integer, db.ForeignKey("logistics.id"), nullable=False)
+    temperature = db.Column(db.Float)                     # 温度
+    record_time = db.Column(db.DateTime, default=_now)

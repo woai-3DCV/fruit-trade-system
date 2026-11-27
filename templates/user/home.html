@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}用户端首页 - 水果交易智能管理系统{% endblock %}
+
+{% block nav %}
+  <a href="/user/" class="active">首页</a>
+  <a href="/user/seckill">限时秒杀</a>
+  <a href="/user/cart">购物车</a>
+  <a href="/user/orders">我的订单</a>
+  <a href="/user/profile">个人中心</a>
+{% endblock %}
+
+
+{% block content %}
+
+  <!-- 搜索框 -->
+  <div style="margin-bottom:16px;">
+    <form method="get" action="/user/" style="display:flex;gap:10px;">
+      <input type="text" name="q" value="{{ keyword or '' }}" placeholder="搜索水果名称 / 产地 / 分类，如：苹果、山东、草莓..."
+             style="flex:1;padding:11px 16px;border:1px solid #e0e0e0;border-radius:22px;font-size:14px;">
+      <button type="submit" class="btn btn-primary" style="padding:11px 24px;border-radius:22px;">🔍 搜索</button>
+    </form>
+    {% if keyword %}
+    <div style="font-size:13px;color:#999;margin-top:8px;">
+      搜索「<span style="color:var(--primary);font-weight:bold;">{{ keyword }}</span>」共 {{ fruits|length }} 个结果
+      <a href="/user/" style="color:var(--primary);margin-left:8px;text-decoration:none;">清除搜索</a>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- 秒杀横幅 -->
+  <div style="background:linear-gradient(90deg,#ff4d4f,#ff7875);border-radius:10px;padding:14px 18px;margin-bottom:18px;color:#fff;display:flex;align-items:center;gap:12px;">
+    <span style="font-size:22px;">⚡</span>
+    <span style="font-weight:bold;font-size:16px;flex:1;">限时秒杀 · 临期好果低价清仓</span>
+    <a href="/user/seckill" style="color:#fff;font-size:13px;text-decoration:none;">进入专场 →</a>
+  </div>
+
+  <!-- 顶部大分类图标栏 -->
+  <div class="cat-top">
+    {% set cat_icons = {'水果':'🍎','蔬菜':'🥬','肉禽':'🍗','水产':'🦐','粮油':'🌾'} %}
+    <a href="/user/?category=全部" class="cat-top-item {{ 'active' if current_category=='全部' }}">
+      <span class="cat-icon">🗂️</span><span>全部</span>
+    </a>
+    {% for c in all_categories %}
+    <a href="/user/?category={{ c }}" class="cat-top-item {{ 'active' if current_category==c }}">
+      <span class="cat-icon">{{ cat_icons.get(c, '🍊') }}</span><span>{{ c }}</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  <!-- 分类主体：左侧二级分类 + 右侧商品列表 -->
+  <div class="cat-body">
+    <!-- 左侧二级分类栏 -->
+    <div class="cat-side">
+      <a href="/user/?category={{ current_category }}" class="{{ 'active' if not current_sub }}">全部</a>
+      {% for sub in all_sub_cats %}
+      <a href="/user/?category={{ current_category }}&sub={{ sub }}" class="{{ 'active' if current_sub==sub }}">{{ sub }}</a>
+      {% endfor %}
+    </div>
+
+    <!-- 右侧商品列表 -->
+    <div class="cat-goods">
+      {% for f in fruits %}
+      <div class="goods-card">
+        <div class="goods-img">{{ f.emoji or '🍓' }}</div>
+        <div class="goods-info">
+          <div class="goods-name">{{ f.name }}</div>
+          <div class="goods-origin">{{ f.origin }} · {{ f.sub_category }}</div>
+          <div class="goods-price-row">
+            <span class="goods-price">¥{{ f.price }}</span>
+            <span class="goods-unit">/斤</span>
+          </div>
+          <div class="goods-sales">已售 {{ f.sales }} 件</div>
+        </div>
+        <div class="goods-btns">
+          <a href="/user/fruit/{{ f.id }}" class="btn btn-outline" style="padding:6px 14px;font-size:13px;text-align:center;">详情</a>
+          <form method="post" action="/user/cart/add/{{ f.id }}">
+            <button type="submit" class="btn btn-primary" style="padding:6px 14px;font-size:13px;width:100%;">＋ 加购</button>
+          </form>
+        </div>
+      </div>
+      {% else %}
+      <div style="grid-column:1/-1;color:var(--text-light);padding:30px;text-align:center;">该分类暂无商品</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- 猜你喜欢（可购买） -->
+  <div class="card" style="margin-top:20px;">
+    <div class="card-title">💡 猜你喜欢</div>
+    <div class="rec-grid">
+      {% for f in recommends %}
+      <div class="rec-card">
+        <div class="rec-img">{{ f.emoji or '🍓' }}</div>
+        <div class="rec-name">{{ f.name }}</div>
+        <div class="rec-price">¥{{ f.price }}<small>/斤</small></div>
+        <div><span class="rec-hot">热销 {{ f.sales }}+</span></div>
+        <div style="margin-top:10px;">
+          <form method="post" action="/user/cart/add/{{ f.id }}">
+            <button type="submit" class="btn btn-primary" style="width:100%;">加入购物车</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+{% endblock %}

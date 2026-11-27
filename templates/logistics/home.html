@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}物流端 - 水果交易智能管理系统{% endblock %}
+
+{% block nav %}
+  <a href="/logistics/" class="active">配送任务</a>
+  <a href="/logistics/track">物流追踪</a>
+  <a href="/logistics/temperature">冷链温控</a>
+{% endblock %}
+
+{% block userinfo %}你好，物流配送{% endblock %}
+
+{% block content %}
+  <div class="card">
+    <div class="card-title">🚚 配送任务</div>
+    <p style="color:var(--text-light);">这里展示物流端的配送任务、物流追踪、冷链温控等功能（D 负责开发）。</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🌡️ 冷链温控追踪（创新点）</div>
+    <table class="table">
+      <thead>
+        <tr><th>订单号</th><th>当前位置</th><th>状态</th><th>车厢温度</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>20261123001</td><td>杭州市余杭区</td>
+          <td><span class="badge badge-green">运输中</span></td>
+          <td>4.2 ℃</td>
+        </tr>
+        <tr>
+          <td>20261123002</td><td>上海市浦东新区</td>
+          <td><span class="badge badge-green">运输中</span></td>
+          <td>5.0 ℃</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

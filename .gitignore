@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+
+# 数据库文件（SQLite）
+*.db
+*.sqlite3
+
+# 密钥与配置（含密码的本地配置不要提交）
+.env
+config_local.py
+instance/
+app/user/ai_config.py
+
+# 编辑器
+.idea/
+.vscode/
+*.swp
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# 日志
+*.log

@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}收银台 - 水果交易智能管理系统{% endblock %}
+
+{% block nav %}
+  <a href="/user/">首页</a>
+  <a href="/user/seckill">限时秒杀</a>
+  <a href="/user/cart">购物车</a>
+  <a href="/user/orders" class="active">我的订单</a>
+  <a href="/user/profile">个人中心</a>
+{% endblock %}
+
+
+{% block content %}
+
+  <div class="card" style="max-width:520px;margin:0 auto;">
+    <div class="card-title">💳 收银台</div>
+
+    <!-- 订单金额 -->
+    <div style="text-align:center;padding:18px 0;border-bottom:1px solid #f0f0f0;">
+      <div style="font-size:13px;color:#999;">订单 #{{ order.id }} 应付金额</div>
+      <div style="font-size:34px;font-weight:bold;color:#ff4d4f;margin-top:4px;">¥{{ '%.2f'|format(order.total_price) }}</div>
+      {% if order.is_seckill %}<div style="font-size:12px;color:#ff4d4f;margin-top:4px;">⚡ 秒杀订单</div>{% endif %}
+    </div>
+
+    <!-- 支付方式选择 -->
+    <form method="post" action="/user/order/{{ order.id }}/pay/confirm">
+      <div style="padding:16px 0 4px;font-size:14px;font-weight:bold;color:#333;">选择支付方式</div>
+
+      <label class="pay-method active">
+        <input type="radio" name="payment_method" value="微信支付" checked style="display:none;">
+        <span class="pay-logo pay-logo-wechat">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path fill="#fff" d="M9.3 4C5.5 4 2.5 6.4 2.5 9.4c0 1.7.9 3.2 2.4 4.2l-.6 2 2.2-1.1c.7.2 1.4.3 2.2.3h.4a5 5 0 0 1-.2-1.4c0-3 2.9-5.4 6.4-5.4h.3C15.3 5.5 12.7 4 9.3 4zM6.5 7.2a.8.8 0 1 1 0 1.6.8.8 0 0 1 0-1.6zm5 0a.8.8 0 1 1 0 1.6.8.8 0 0 1 0-1.6zm10 7.5c0-2.6-2.7-4.7-6-4.7s-6 2.1-6 4.7 2.7 4.7 6 4.7c.7 0 1.4-.1 2-.3l1.8.9-.5-1.7c1.6-.9 2.7-2.2 2.7-3.6zm-7.8-1a.7.7 0 1 1 0 1.4.7.7 0 0 1 0-1.4zm3.8 0a.7.7 0 1 1 0 1.4.7.7 0 0 1 0-1.4z"/></svg>
+        </span>
+        <span style="flex:1;font-size:15px;font-weight:bold;">微信支付</span>
+        <span class="pay-check">✓</span>
+      </label>
+
+      <label class="pay-method">
+        <input type="radio" name="payment_method" value="支付宝" style="display:none;">
+        <span class="pay-logo pay-logo-alipay">
+          <svg viewBox="0 0 24 24" width="24" height="24">
+            <text x="12" y="17" text-anchor="middle" font-family="'PingFang SC','Microsoft YaHei',sans-serif" font-size="15" font-weight="bold" fill="#fff">支</text>
+          </svg>
+        </span>
+        <span style="flex:1;font-size:15px;font-weight:bold;">支付宝</span>
+        <span class="pay-check">✓</span>
+      </label>
+
+      <label class="pay-method">
+        <input type="radio" name="payment_method" value="银行卡支付" style="display:none;">
+        <span class="pay-logo pay-logo-bank">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path fill="#fff" d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM5 10h3v2H5v-2zm5 0h3v2h-3v-2zm5 0h3v2h-3v-2z"/></svg>
+        </span>
+        <span style="flex:1;font-size:15px;font-weight:bold;">银行卡支付</span>
+        <span class="pay-check">✓</span>
+      </label>
+
+      <button type="submit" class="btn btn-primary" style="width:100%;padding:12px;font-size:16px;border-radius:8px;margin-top:16px;">确认支付 ¥{{ '%.2f'|format(order.total_price) }}</button>
+    </form>
+
+    <div style="text-align:center;margin-top:12px;">
+      <a href="/user/orders" style="font-size:13px;color:#999;">返回订单列表</a>
+    </div>
+  </div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll('.pay-method').forEach(function(el){
+    el.addEventListener('click', function(){
+      document.querySelectorAll('.pay-method').forEach(function(x){ x.classList.remove('active'); });
+      el.classList.add('active');
+      var radio = el.querySelector('input[name="payment_method"]');
+      if (radio) radio.checked = true;
+    });
+  });
+</script>
+{% endblock %}
